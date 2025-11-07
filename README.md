@@ -36,16 +36,18 @@ protein-stability-doe/
 ### 1) Set up a Python environment
 
 ```bash
-# Option A: venv
+# Create virtual environment
 python -m venv .venv
-# Windows
+
+# Activate
+# Windows:
 .venv\Scripts\activate
-# macOS/Linux
+# macOS/Linux:
 source .venv/bin/activate
 
-# Install what you need
-pip install -r requirements-analysis.txt
-pip install -r requirements-designer.txt
+# Install dependencies
+python -m pip install -r requirements-analysis.txt
+python -m pip install -r requirements-designer.txt
 ```
 
 ### 2) Designer — build an experimental design
