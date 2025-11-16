@@ -863,106 +863,44 @@ class BayesianOptimizer:
             return None
     
     def _select_most_important_factors(self):
-        """Select the 2 most important numeric factors using GP lengthscales"""
+        """Select the 2 most important numeric factors using feature importances"""
         if len(self.numeric_factors) <= 2:
             return self.numeric_factors[:2] if len(self.numeric_factors) == 2 else None
 
         try:
-            # Strategy: Use GP model lengthscales (shorter = more important)
-            # Get the GP model from Ax
+            # Use BoTorch's feature_importances method
             adapter = self.ax_client.generation_strategy.adapter
 
-            # Extract covariance kernel parameters (lengthscales)
-            # In Ax/BoTorch, lengthscales indicate how quickly function changes
-            # Short lengthscale = factor is important (rapid changes)
-            # Long lengthscale = factor is less important (slow changes)
+            if hasattr(adapter, 'generator') and hasattr(adapter.generator, 'feature_importances'):
+                # Get feature importances from BoTorchGenerator
+                importances = adapter.generator.feature_importances()
 
-            lengthscales = {}
+                # importances is a dict with sanitized parameter names
+                # Filter for numeric factors only and convert back to original names
+                factor_importances = {}
+                for orig_factor in self.numeric_factors:
+                    sanitized = self.reverse_mapping.get(orig_factor, orig_factor)
+                    if sanitized in importances:
+                        factor_importances[orig_factor] = importances[sanitized]
 
-            # Debug: Check what we have
-            print(f"  [Debug] Adapter type: {type(adapter).__name__}")
+                if len(factor_importances) >= 2:
+                    print(f"✓ Using feature importances for factor selection")
+                    print(f"  Feature importances: {factor_importances}")
 
-            # Check for private model attributes
-            private_model_attrs = [a for a in dir(adapter) if a.startswith('_') and 'model' in a.lower()]
-            print(f"  [Debug] Private model-related attrs: {private_model_attrs}")
+                    # Sort by importance and take top 2
+                    sorted_factors = sorted(factor_importances.items(), key=lambda x: x[1], reverse=True)
+                    selected = [f[0] for f in sorted_factors[:2]]
 
-            # Check generator
-            if hasattr(adapter, 'generator'):
-                gen = adapter.generator
-                print(f"  [Debug] Generator type: {type(gen).__name__}")
-                gen_public_attrs = [a for a in dir(gen) if not a.startswith('_')]
-                print(f"  [Debug] Generator public attrs: {gen_public_attrs[:20]}")
-                gen_private_model = [a for a in dir(gen) if a.startswith('_') and 'model' in a.lower()]
-                print(f"  [Debug] Generator private model attrs: {gen_private_model}")
+                    print(f"  Selected most important factors: {selected}")
+                    return selected
 
-            # Try multiple paths to find the GP model's covariance module
-            covar = None
-            model = None
-
-            # Try to get the model from various locations
-            if hasattr(adapter, 'model'):
-                model = adapter.model
-            elif hasattr(adapter, '_model'):
-                model = adapter._model
-            elif hasattr(adapter, '_botorch_model'):
-                model = adapter._botorch_model
-            elif hasattr(adapter, 'botorch_model'):
-                model = adapter.botorch_model
-            elif hasattr(adapter, 'generator') and hasattr(adapter.generator, 'model'):
-                model = adapter.generator.model
-            elif hasattr(adapter, 'surrogate'):
-                # Surrogate might contain the model
-                surrogate = adapter.surrogate
-                if hasattr(surrogate, 'model'):
-                    model = surrogate.model
-
-            if model is not None:
-                print(f"  [Debug] Model type: {type(model).__name__}")
-                print(f"  [Debug] Model has 'covar_module': {hasattr(model, 'covar_module')}")
-
-            # Path 1: adapter.model.covar_module (Ax 1.1.2+)
-            if model is not None and hasattr(model, 'covar_module'):
-                covar = model.covar_module
-                print(f"  [Debug] Found covar via adapter.model.covar_module")
-            # Path 2: adapter.adapter.covar_module (older structure)
-            elif hasattr(adapter, 'adapter') and hasattr(adapter.adapter, 'covar_module'):
-                covar = adapter.adapter.covar_module
-                print(f"  [Debug] Found covar via adapter.adapter.covar_module")
-            # Path 3: Direct model access
-            elif hasattr(adapter, 'covar_module'):
-                covar = adapter.covar_module
-                print(f"  [Debug] Found covar via adapter.covar_module")
-
-            if covar is not None:
-                # Get base kernel (may be wrapped in ScaleKernel)
-                base_kernel = covar.base_kernel if hasattr(covar, 'base_kernel') else covar
-
-                # Extract lengthscales
-                if hasattr(base_kernel, 'lengthscale'):
-                    ls_tensor = base_kernel.lengthscale.detach().cpu().numpy().flatten()
-
-                    # Map lengthscales to factor names (using sanitized names)
-                    for idx, factor in enumerate(self.numeric_factors):
-                        if idx < len(ls_tensor):
-                            # Inverse lengthscale = importance (shorter = more important)
-                            lengthscales[factor] = 1.0 / (ls_tensor[idx] + 1e-6)
-
-                    if lengthscales:
-                        print(f"✓ Using GP lengthscales for factor selection")
-                        print(f"  Lengthscale-based importance: {lengthscales}")
-
-                        # Sort by importance (inverse lengthscale) and take top 2
-                        sorted_factors = sorted(lengthscales.items(), key=lambda x: x[1], reverse=True)
-                        selected = [f[0] for f in sorted_factors[:2]]
-
-                        print(f"  Selected most important factors: {selected}")
-                        return selected
-
-            # If lengthscale extraction fails, fall back to range-based
-            print("⚠ Could not extract GP lengthscales, falling back to range-based selection")
+            # If feature importances not available, fall back
+            print("⚠ Could not extract feature importances, falling back to range-based selection")
 
         except Exception as e:
-            print(f"⚠ Error extracting lengthscales: {e}")
+            print(f"⚠ Error extracting feature importances: {e}")
+            import traceback
+            traceback.print_exc()
             print("  Falling back to range-based selection")
 
         # Fallback: Select factors with largest ranges
