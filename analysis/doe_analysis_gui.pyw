@@ -784,17 +784,18 @@ class BayesianOptimizer:
         
         return suggestions
     
-    def _create_suggestion_heatmap(self, factor_x_orig, factor_y_orig, 
+    def _create_suggestion_heatmap(self, factor_x_orig, factor_y_orig,
                                    factor_x_san, factor_y_san, X, Y):
-        """Create a heatmap showing where BO suggests exploring"""
+        """Create a heatmap showing where BO suggests exploring - ENHANCED VERSION"""
         try:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-            
+            # Larger for export quality
+            fig, ax = plt.subplots(1, 1, figsize=(9, 7))
+
             # Generate many suggestions and extract their x,y positions
             n_suggestions = 50
             suggestions_x = []
             suggestions_y = []
-            
+
             for _ in range(n_suggestions):
                 try:
                     params, trial_idx = self.ax_client.get_next_trial()
@@ -803,38 +804,58 @@ class BayesianOptimizer:
                     self.ax_client.abandon_trial(trial_idx)
                 except:
                     break
-            
+
             if len(suggestions_x) < 5:
                 print("Could not generate enough suggestions for heatmap")
                 return None
-            
+
             # Create 2D histogram / density plot
             from scipy.stats import gaussian_kde
             xy = np.vstack([suggestions_x, suggestions_y])
             z = gaussian_kde(xy)(xy)
-            
-            # Plot scatter with density colors
-            scatter = ax.scatter(suggestions_x, suggestions_y, c=z, s=100,
-                               cmap='viridis', alpha=0.7, edgecolors='white', linewidth=1.2)
-            plt.colorbar(scatter, ax=ax, label='Suggestion Density\n(Higher = More Recommended)')
-            
-            # Plot existing experiments
+
+            # Plot scatter with density colors - modern colormap
+            scatter = ax.scatter(suggestions_x, suggestions_y, c=z, s=150,
+                               cmap='plasma', alpha=0.7,
+                               edgecolors='white', linewidth=2)
+
+            # Enhanced colorbar
+            cbar = plt.colorbar(scatter, ax=ax, label='Suggestion Density')
+            cbar.ax.tick_params(labelsize=11)
+            cbar.set_label('Suggestion Density\n(Higher = More Recommended)',
+                          fontsize=12, fontweight='bold')
+
+            # Plot existing experiments with modern styling
             existing_x = self.data[factor_x_orig].values
             existing_y = self.data[factor_y_orig].values
-            ax.scatter(existing_x, existing_y, c=self.COLORS['accent'], s=120,
-                      edgecolors='white', linewidth=2.5,
+            ax.scatter(existing_x, existing_y, c='#2E86AB', s=150,
+                      edgecolors='white', linewidth=3,
                       label='Existing Experiments', zorder=5, marker='s', alpha=0.9)
-            
-            ax.set_xlabel(factor_x_orig, fontsize=12, fontweight='bold')
-            ax.set_ylabel(factor_y_orig, fontsize=12, fontweight='bold')
+
+            # Enhanced labels and title
+            ax.set_xlabel(factor_x_orig, fontsize=13, fontweight='bold', color='#333333')
+            ax.set_ylabel(factor_y_orig, fontsize=13, fontweight='bold', color='#333333')
             ax.set_title('Bayesian Optimization: Recommended Exploration Regions',
-                        fontsize=14, fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            
+                        fontsize=15, fontweight='bold', pad=15, color='#1a1a1a')
+
+            # Modern legend
+            ax.legend(fontsize=11, framealpha=0.95, edgecolor='#CCCCCC', loc='best')
+
+            # Modern grid
+            ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
+            ax.set_axisbelow(True)
+
+            # Set background
+            ax.set_facecolor('#FAFAFA')
+
+            # Borders
+            for spine in ax.spines.values():
+                spine.set_edgecolor('#CCCCCC')
+                spine.set_linewidth(1.5)
+
             plt.tight_layout()
             return fig
-            
+
         except Exception as e:
             print(f"Error creating suggestion heatmap: {e}")
             import traceback
@@ -956,31 +977,51 @@ class BayesianOptimizer:
                                                        factor_x_sanitized, factor_y_sanitized,
                                                        X, Y)
             
-            # Create the contour plot
-            fig, ax = plt.subplots(1, 1, figsize=(8, 6))
-            
-            # Plot contour
-            contour = ax.contourf(X, Y, Z, levels=15, cmap='viridis', alpha=0.8)
-            plt.colorbar(contour, ax=ax, label=f'Predicted {self.response_column}')
-            
-            # Add contour lines
-            ax.contour(X, Y, Z, levels=8, colors='black', alpha=0.3, linewidths=0.5)
-            
-            # Plot existing data points (use original names)
+            # Create the contour plot - ENHANCED VERSION
+            # Larger for export quality
+            fig, ax = plt.subplots(1, 1, figsize=(9, 7))
+
+            # Modern colormap - use RdYlGn for better visibility (red=low, yellow=mid, green=high)
+            contour = ax.contourf(X, Y, Z, levels=20, cmap='RdYlGn', alpha=0.9)
+
+            # Enhanced colorbar
+            cbar = plt.colorbar(contour, ax=ax, label=f'Predicted {self.response_column}')
+            cbar.ax.tick_params(labelsize=11)
+            cbar.set_label(f'Predicted {self.response_column}', fontsize=12, fontweight='bold')
+
+            # Add contour lines for better readability
+            contour_lines = ax.contour(X, Y, Z, levels=10, colors='black',
+                                       alpha=0.4, linewidths=1.5)
+            ax.clabel(contour_lines, inline=True, fontsize=9, fmt='%.1f')
+
+            # Plot existing data points with modern styling
             existing_x = self.data[factor_x_original].values
             existing_y = self.data[factor_y_original].values
-            ax.scatter(existing_x, existing_y, c=self.COLORS['accent'], s=120,
-                      edgecolors='white', linewidth=2.5,
+            ax.scatter(existing_x, existing_y, c='#2E86AB', s=150,
+                      edgecolors='white', linewidth=3,
                       label='Existing Experiments', zorder=5, marker='o', alpha=0.9)
-            
-            # Use original names in labels
-            ax.set_xlabel(factor_x_original, fontsize=12, fontweight='bold')
-            ax.set_ylabel(factor_y_original, fontsize=12, fontweight='bold')
-            ax.set_title('Bayesian Optimization: Predicted Response Surface', 
-                        fontsize=14, fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            
+
+            # Enhanced labels and title
+            ax.set_xlabel(factor_x_original, fontsize=13, fontweight='bold', color='#333333')
+            ax.set_ylabel(factor_y_original, fontsize=13, fontweight='bold', color='#333333')
+            ax.set_title('Bayesian Optimization: Predicted Response Surface',
+                        fontsize=15, fontweight='bold', pad=15, color='#1a1a1a')
+
+            # Modern legend
+            ax.legend(fontsize=11, framealpha=0.95, edgecolor='#CCCCCC', loc='best')
+
+            # Modern grid
+            ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
+            ax.set_axisbelow(True)
+
+            # Set background
+            ax.set_facecolor('#FAFAFA')
+
+            # Borders
+            for spine in ax.spines.values():
+                spine.set_edgecolor('#CCCCCC')
+                spine.set_linewidth(1.5)
+
             plt.tight_layout()
             return fig
             
