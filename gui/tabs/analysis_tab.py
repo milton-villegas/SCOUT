@@ -2023,24 +2023,20 @@ class AnalysisTab(ttk.Frame):
         # Tab 5: Recommendations
         self.recommendations_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.recommendations_frame, text="Recommendations")
-        
-        # Add button frame at top for BO export
+
+        # Add button frame at top for BO batch export
         if AX_AVAILABLE:
             button_frame = ttk.Frame(self.recommendations_frame)
             button_frame.pack(fill='x', padx=5, pady=5)
-            
+
             self.export_bo_button = ttk.Button(button_frame, text="📤 Export BO Batch to Files",
                                               command=self.export_bo_batch, state='disabled')
             self.export_bo_button.pack(side='left', padx=5)
 
-            self.export_bo_plots_button = ttk.Button(button_frame, text="📊 Export BO Plots",
-                                                     command=self.export_bo_plots_gui, state='disabled')
-            self.export_bo_plots_button.pack(side='left', padx=5)
-
             ttk.Label(button_frame, text="(Available after analysis with BO suggestions)",
                      font=('TkDefaultFont', 9)).pack(side='left', padx=5)
-        
-        self.recommendations_text = scrolledtext.ScrolledText(self.recommendations_frame, 
+
+        self.recommendations_text = scrolledtext.ScrolledText(self.recommendations_frame,
                                                              wrap=tk.WORD, font=('Courier', 14))
         self.recommendations_text.pack(fill='both', expand=True, padx=5, pady=5)
         
@@ -2048,15 +2044,21 @@ class AnalysisTab(ttk.Frame):
         if AX_AVAILABLE:
             optimization_container = ttk.Frame(self.notebook)
             self.notebook.add(optimization_container, text="Optimization Details")
-            
-            # Tooltip button for optimization
+
+            # Tooltip button for optimization and export button
             opt_header = ttk.Frame(optimization_container)
             opt_header.pack(fill='x', padx=5, pady=2)
-            ttk.Label(opt_header, text="Bayesian Optimization Analysis", 
+            ttk.Label(opt_header, text="Bayesian Optimization Analysis",
                      font=('TkDefaultFont', 10, 'bold')).pack(side='left')
+
+            # Export BO Plots button
+            self.export_bo_plots_button = ttk.Button(opt_header, text="📊 Export BO Plots",
+                                                     command=self.export_bo_plots_gui, state='disabled')
+            self.export_bo_plots_button.pack(side='right', padx=5)
+
             ttk.Button(opt_header, text="ℹ️ How to Read", width=15,
                       command=lambda: self.show_tooltip("optimization")).pack(side='right', padx=5)
-            
+
             # Scrollable frame for optimization plot
             self.optimization_frame = self.create_scrollable_frame(optimization_container)
     
