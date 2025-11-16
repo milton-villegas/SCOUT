@@ -915,58 +915,84 @@ class BayesianOptimizer:
             print(f"⚠ Error extracting feature importances: {e}")
             print("  Falling back to range-based selection")
 
-        # Fallback: Sensitivity analysis - works for all model types
-        # Measure how much each factor affects the predicted response
+        # Fallback: Sobol sensitivity analysis - works for all model types
+        # Uses Ax's built-in global sensitivity analysis with Sobol indices
         try:
-            print("  Using sensitivity analysis for factor selection...")
+            print("  Using Sobol sensitivity analysis for factor selection...")
 
-            # Create baseline: median values for all factors
-            baseline = {}
-            for factor in self.factor_columns:
-                sanitized = self.reverse_mapping[factor]
-                if factor in self.numeric_factors:
-                    baseline[sanitized] = float(self.data[factor].median())
+            # Try to use Ax's built-in Sobol sensitivity analysis
+            from ax.analysis.plotly.sensitivity import SensitivityAnalysisPlot
+
+            analysis = SensitivityAnalysisPlot()
+            card = analysis.compute(
+                experiment=self.ax_client._experiment,
+                generation_strategy=self.ax_client._generation_strategy
+            )
+
+            # Extract Sobol indices from the analysis card
+            # The blob is a JSON string containing the plotly figure
+            if card is not None:
+                import json
+                import plotly.graph_objects as go
+
+                # Parse the JSON blob to get the plotly figure data
+                blob_json = json.loads(card.blob)
+                fig = go.Figure(blob_json)
+
+                # Parse Sobol indices from the plotly figure data
+                # The data structure contains parameter names and their total Sobol indices
+                sensitivities = {}
+
+                if hasattr(fig, 'data') and len(fig.data) > 0:
+                    # Extract from plotly bar chart data
+                    # Note: In plotly's encoding, parameter names are in y and values are in x (as binary data)
+                    for idx, trace in enumerate(fig.data):
+                        if hasattr(trace, 'x') and hasattr(trace, 'y'):
+                            # Extract parameter names (in trace.y) and Sobol values (in trace.x as binary)
+                            param_names = trace.y  # Parameter names are in y
+                            sobol_data = trace.x   # Sobol values are in x (binary encoded)
+
+                            # Decode binary-encoded Sobol values
+                            if isinstance(param_names, (list, tuple)) and isinstance(sobol_data, dict):
+                                import base64
+                                import numpy as np
+
+                                # Decode base64 binary data
+                                binary_data = base64.b64decode(sobol_data['bdata'])
+                                dtype = sobol_data.get('dtype', 'f8')
+                                sobol_values = np.frombuffer(binary_data, dtype=dtype)
+
+                                print(f"  Decoded {len(sobol_values)} Sobol indices from analysis")
+
+                                # Map parameter names to Sobol values
+                                for param_name, sobol_val in zip(param_names, sobol_values):
+                                    # Map sanitized parameter names back to original factor names
+                                    for orig_factor in self.numeric_factors:
+                                        sanitized = self.reverse_mapping.get(orig_factor, orig_factor)
+                                        if sanitized == param_name:
+                                            sensitivities[orig_factor] = float(sobol_val)
+                                            break
                 else:
-                    baseline[sanitized] = str(self.data[factor].mode()[0])
+                    print(f"  No Sobol data found in analysis")
 
-            # Measure sensitivity for each numeric factor
-            sensitivities = {}
-            for factor in self.numeric_factors:
-                min_val, max_val = self.factor_bounds[factor]
-                if max_val - min_val == 0:
-                    continue
+                if len(sensitivities) >= 2:
+                    print(f"✓ Using Sobol sensitivity indices for factor selection")
+                    print(f"  Sobol indices: {sensitivities}")
 
-                sanitized = self.reverse_mapping[factor]
+                    sorted_factors = sorted(sensitivities.items(), key=lambda x: x[1], reverse=True)
+                    selected = [f[0] for f in sorted_factors[:2]]
 
-                # Test at min and max
-                params_min = baseline.copy()
-                params_min[sanitized] = float(min_val)
-                params_max = baseline.copy()
-                params_max[sanitized] = float(max_val)
+                    print(f"  Selected most important factors: {selected}")
+                    return selected
+                else:
+                    print(f"  Could not extract enough Sobol indices (got {len(sensitivities)})")
 
-                # Get predictions
-                pred_min, _ = self.ax_client.get_model_predictions_for_parameterizations(
-                    parameterizations=[params_min],
-                    metric_names=[self.response_column]
-                )[0][self.response_column]
-
-                pred_max, _ = self.ax_client.get_model_predictions_for_parameterizations(
-                    parameterizations=[params_max],
-                    metric_names=[self.response_column]
-                )[0][self.response_column]
-
-                # Sensitivity = absolute change in prediction
-                sensitivities[factor] = abs(pred_max - pred_min)
-
-            if len(sensitivities) >= 2:
-                print(f"  Sensitivities: {sensitivities}")
-                sorted_factors = sorted(sensitivities.items(), key=lambda x: x[1], reverse=True)
-                selected = [f[0] for f in sorted_factors[:2]]
-                print(f"  Selected factors based on sensitivity: {selected}")
-                return selected
-
+        except ImportError:
+            print(f"  Sobol analysis not available (Ax version may not support it)")
         except Exception as e:
-            print(f"  Sensitivity analysis failed: {e}")
+            print(f"  Sobol analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
 
         # Ultimate fallback: largest parameter ranges
         factor_ranges = {}
