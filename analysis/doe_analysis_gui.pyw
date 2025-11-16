@@ -873,21 +873,25 @@ class BayesianOptimizer:
 
             if hasattr(adapter, 'generator') and hasattr(adapter.generator, 'feature_importances'):
                 # Get feature importances from BoTorchGenerator
-                print(f"  [Debug] Calling feature_importances()...")
                 importances = adapter.generator.feature_importances()
-                print(f"  [Debug] Raw importances: {importances}")
 
-                # importances is a dict with sanitized parameter names
-                # Filter for numeric factors only and convert back to original names
+                # importances is a numpy array - flatten it
+                import numpy as np
+                importance_values = np.array(importances).flatten()
+
+                # Get parameter names in the order they appear in the model
+                param_names = list(adapter.parameters)
+
+                # Create dict mapping original factor names to importance values
                 factor_importances = {}
-                for orig_factor in self.numeric_factors:
-                    sanitized = self.reverse_mapping.get(orig_factor, orig_factor)
-                    print(f"  [Debug] Looking for {orig_factor} -> {sanitized} in importances")
-                    if sanitized in importances:
-                        factor_importances[orig_factor] = importances[sanitized]
-
-                print(f"  [Debug] Filtered factor_importances: {factor_importances}")
-                print(f"  [Debug] len(factor_importances) = {len(factor_importances)}")
+                for idx, param_name in enumerate(param_names):
+                    if idx < len(importance_values):
+                        # Find the original factor name from the sanitized parameter name
+                        for orig_factor in self.numeric_factors:
+                            sanitized = self.reverse_mapping.get(orig_factor, orig_factor)
+                            if sanitized == param_name:
+                                factor_importances[orig_factor] = float(importance_values[idx])
+                                break
 
                 if len(factor_importances) >= 2:
                     print(f"✓ Using feature importances for factor selection")
@@ -899,8 +903,6 @@ class BayesianOptimizer:
 
                     print(f"  Selected most important factors: {selected}")
                     return selected
-                else:
-                    print(f"  [Debug] Not enough factor importances ({len(factor_importances)} < 2)")
 
             # If feature importances not available, fall back
             print("⚠ Could not extract feature importances, falling back to range-based selection")
