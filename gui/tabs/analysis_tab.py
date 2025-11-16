@@ -983,7 +983,9 @@ class AnalysisTab(ttk.Frame):
                 directory = os.path.dirname(final_path)
 
                 messagebox.showinfo("Export Complete",
-                    f"File saved: {filename}\n"
+                    f"File saved:\n\n"
+                    f"  - {filename}\n\n"
+                    f"{'-' * 60}\n\n"
                     f"Location: {directory}")
             except Exception as e:
                 messagebox.showerror("Error", f"Export failed:\n{str(e)}")
@@ -1195,10 +1197,11 @@ class AnalysisTab(ttk.Frame):
             plt.close(fig3)
 
             messagebox.showinfo("Export Complete",
-                              f"Files saved:\n"
-                              f"- {base_path}_MainEffects_{date_str}.{file_format}\n"
-                              f"- {base_path}_Interactions_{date_str}.{file_format}\n"
-                              f"- {base_path}_Residuals_{date_str}.{file_format}\n\n"
+                              f"Files saved:\n\n"
+                              f"  - {base_path}_MainEffects_{date_str}.{file_format}\n"
+                              f"  - {base_path}_Interactions_{date_str}.{file_format}\n"
+                              f"  - {base_path}_Residuals_{date_str}.{file_format}\n\n"
+                              f"{'-' * 60}\n\n"
                               f"Location: {directory}")
         except Exception as e:
             messagebox.showerror("Error", f"Export failed:\n{str(e)}")
@@ -1308,9 +1311,10 @@ class AnalysisTab(ttk.Frame):
                     directory = os.path.dirname(xlsx_path)
 
                     messagebox.showinfo("Export Complete",
-                        f"Files saved:\n"
-                        f"- {xlsx_filename}\n"
-                        f"- {csv_filename}\n\n"
+                        f"Files saved:\n\n"
+                        f"  - {xlsx_filename}\n"
+                        f"  - {csv_filename}\n\n"
+                        f"{'-' * 60}\n\n"
                         f"Location: {directory}")
                 else:
                     messagebox.showerror("Error", "Export failed. Check console for details.")
@@ -1364,10 +1368,11 @@ class AnalysisTab(ttk.Frame):
 
             if exported_files:
                 # Build file list with proper formatting
-                filenames = "\n".join([f"- {os.path.basename(f)}" for f in exported_files])
+                filenames = "\n".join([f"  - {os.path.basename(f)}" for f in exported_files])
                 messagebox.showinfo("Export Complete",
-                                  f"Files saved:\n"
+                                  f"Files saved:\n\n"
                                   f"{filenames}\n\n"
+                                  f"{'-' * 60}\n\n"
                                   f"Location: {directory}")
             else:
                 messagebox.showwarning("Warning", "No plots were exported. Check console for details.")

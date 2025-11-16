@@ -2221,9 +2221,10 @@ class DesignerTab(ttk.Frame):
             directory = os.path.dirname(xlsx_path)
 
             messagebox.showinfo("Export Complete",
-                f"Files saved:\n"
-                f"- {xlsx_filename}\n"
-                f"- {csv_filename}\n\n"
+                f"Files saved:\n\n"
+                f"  - {xlsx_filename}\n"
+                f"  - {csv_filename}\n\n"
+                f"{'-' * 60}\n\n"
                 f"Location: {directory}")
         
         except Exception as e:
