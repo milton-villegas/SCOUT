@@ -881,16 +881,31 @@ class BayesianOptimizer:
 
             # Debug: Check what we have
             print(f"  [Debug] Adapter type: {type(adapter).__name__}")
-            adapter_attrs = [a for a in dir(adapter) if not a.startswith('_')]
-            print(f"  [Debug] Adapter has 'model': {hasattr(adapter, 'model')}")
+
+            # Check common model attribute names in TorchAdapter
+            print(f"  [Debug] Has 'model': {hasattr(adapter, 'model')}")
+            print(f"  [Debug] Has '_model': {hasattr(adapter, '_model')}")
+            print(f"  [Debug] Has 'botorch_model': {hasattr(adapter, 'botorch_model')}")
+            print(f"  [Debug] Has 'surrogate': {hasattr(adapter, 'surrogate')}")
 
             # Try multiple paths to find the GP model's covariance module
             covar = None
             model = None
 
-            # First, try to get the model
+            # Try to get the model from various locations
             if hasattr(adapter, 'model'):
                 model = adapter.model
+            elif hasattr(adapter, '_model'):
+                model = adapter._model
+            elif hasattr(adapter, 'botorch_model'):
+                model = adapter.botorch_model
+            elif hasattr(adapter, 'surrogate'):
+                # Surrogate might contain the model
+                surrogate = adapter.surrogate
+                if hasattr(surrogate, 'model'):
+                    model = surrogate.model
+
+            if model is not None:
                 print(f"  [Debug] Model type: {type(model).__name__}")
                 print(f"  [Debug] Model has 'covar_module': {hasattr(model, 'covar_module')}")
 
