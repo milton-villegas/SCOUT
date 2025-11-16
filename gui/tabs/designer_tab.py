@@ -2222,10 +2222,10 @@ class DesignerTab(ttk.Frame):
 
             messagebox.showinfo("Export Complete",
                 f"Files saved:\n\n"
-                f"  - {xlsx_filename}\n"
-                f"  - {csv_filename}\n\n"
-                f"{'-' * 60}\n\n"
-                f"Location: {directory}")
+                f"    {xlsx_filename}\n"
+                f"    {csv_filename}\n\n"
+                f"Location:\n"
+                f"    {directory}")
         
         except Exception as e:
             messagebox.showerror("Export Failed", f"Error during export:\n\n{str(e)}")
