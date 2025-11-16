@@ -1251,8 +1251,16 @@ class BayesianOptimizer:
             traceback.print_exc()
             return None
 
-    def export_bo_plots(self, directory, base_name="Experiment", date_str=None):
-        """Export individual high-resolution BO plots for publication"""
+    def export_bo_plots(self, directory, base_name="Experiment", date_str=None, file_format="png", dpi=300):
+        """Export individual high-resolution BO plots for publication
+
+        Args:
+            directory: Output directory
+            base_name: Base filename
+            date_str: Date string (YYYYMMDD)
+            file_format: File format (png, tiff, pdf, eps)
+            dpi: Resolution for raster formats (PNG, TIFF)
+        """
         if not self.is_initialized:
             raise ValueError("Optimizer not initialized")
 
@@ -1345,8 +1353,8 @@ class BayesianOptimizer:
             ax1.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax1.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath1 = os.path.join(directory, f'{base_name}_BO_ResponseSurface_{date_str}.png')
-            fig1.savefig(filepath1, dpi=300, bbox_inches='tight')
+            filepath1 = os.path.join(directory, f'{base_name}_BO_ResponseSurface_{date_str}.{file_format}')
+            fig1.savefig(filepath1, dpi=dpi, bbox_inches='tight')
             plt.close(fig1)
             exported_files.append(filepath1)
 
@@ -1375,8 +1383,8 @@ class BayesianOptimizer:
             ax2.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax2.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath2 = os.path.join(directory, f'{base_name}_BO_Acquisition_{date_str}.png')
-            fig2.savefig(filepath2, dpi=300, bbox_inches='tight')
+            filepath2 = os.path.join(directory, f'{base_name}_BO_Acquisition_{date_str}.{file_format}')
+            fig2.savefig(filepath2, dpi=dpi, bbox_inches='tight')
             plt.close(fig2)
             exported_files.append(filepath2)
 
@@ -1422,8 +1430,8 @@ class BayesianOptimizer:
             ax3.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax3.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath3 = os.path.join(directory, f'{base_name}_BO_Uncertainty_{date_str}.png')
-            fig3.savefig(filepath3, dpi=300, bbox_inches='tight')
+            filepath3 = os.path.join(directory, f'{base_name}_BO_Uncertainty_{date_str}.{file_format}')
+            fig3.savefig(filepath3, dpi=dpi, bbox_inches='tight')
             plt.close(fig3)
             exported_files.append(filepath3)
 
@@ -1458,8 +1466,8 @@ class BayesianOptimizer:
             ax4.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax4.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath4 = os.path.join(directory, f'{base_name}_BO_Progress_{date_str}.png')
-            fig4.savefig(filepath4, dpi=300, bbox_inches='tight')
+            filepath4 = os.path.join(directory, f'{base_name}_BO_Progress_{date_str}.{file_format}')
+            fig4.savefig(filepath4, dpi=dpi, bbox_inches='tight')
             plt.close(fig4)
             exported_files.append(filepath4)
 
@@ -2812,15 +2820,89 @@ class AnalysisTab(ttk.Frame):
         else:
             return None
     
+    def _ask_plot_format(self):
+        """Ask user for plot export format"""
+        dialog = tk.Toplevel(self)
+        dialog.title("Select Plot Format")
+        dialog.geometry("400x300")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        result = {'format': None, 'dpi': 300}
+
+        ttk.Label(dialog, text="Select Export Format", font=('TkDefaultFont', 12, 'bold')).pack(pady=10)
+
+        # Format selection
+        format_frame = ttk.LabelFrame(dialog, text="File Format", padding=10)
+        format_frame.pack(fill='x', padx=20, pady=10)
+
+        format_var = tk.StringVar(value="png")
+
+        formats = [
+            ("PNG - Good for presentations, web (300 DPI)", "png"),
+            ("TIFF - Publication quality, lossless (300 DPI)", "tiff"),
+            ("PDF - Vector format, scalable", "pdf"),
+            ("EPS - Vector format, publication standard", "eps")
+        ]
+
+        for text, value in formats:
+            ttk.Radiobutton(format_frame, text=text, variable=format_var, value=value).pack(anchor='w', pady=2)
+
+        # DPI selection (only for raster formats)
+        dpi_frame = ttk.LabelFrame(dialog, text="Resolution (PNG/TIFF only)", padding=10)
+        dpi_frame.pack(fill='x', padx=20, pady=10)
+
+        dpi_var = tk.IntVar(value=300)
+
+        dpi_options = [
+            ("300 DPI - Standard publication quality", 300),
+            ("600 DPI - High quality publication", 600),
+            ("150 DPI - Screen/web quality", 150)
+        ]
+
+        for text, value in dpi_options:
+            ttk.Radiobutton(dpi_frame, text=text, variable=dpi_var, value=value).pack(anchor='w', pady=2)
+
+        def confirm():
+            result['format'] = format_var.get()
+            result['dpi'] = dpi_var.get()
+            dialog.destroy()
+
+        def cancel():
+            dialog.destroy()
+
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(pady=10)
+        ttk.Button(button_frame, text="OK", command=confirm).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="Cancel", command=cancel).pack(side='left', padx=5)
+
+        self.wait_window(dialog)
+        return result
+
     def export_plots(self):
-        """Export plots as PNG"""
+        """Export plots in user-selected format"""
+        # Ask for format first
+        format_options = self._ask_plot_format()
+        if not format_options['format']:
+            return
+
+        file_format = format_options['format']
+        dpi = format_options['dpi']
         date_str = datetime.now().strftime('%Y%m%d')
 
-        # Ask user for base name first
+        # File type mapping for dialog
+        format_map = {
+            'png': ("PNG files", "*.png"),
+            'tiff': ("TIFF files", "*.tiff"),
+            'pdf': ("PDF files", "*.pdf"),
+            'eps': ("EPS files", "*.eps")
+        }
+
+        # Ask user for base name
         base_name = filedialog.asksaveasfilename(
-            defaultextension=".png",
-            filetypes=[("PNG files", "*.png")],
-            initialfile=f"Experiment_MainEffects_{date_str}.png",
+            defaultextension=f".{file_format}",
+            filetypes=[format_map[file_format], ("All files", "*.*")],
+            initialfile=f"Experiment_MainEffects_{date_str}.{file_format}",
             title="Choose base name for plots (will create multiple files)"
         )
 
@@ -2838,15 +2920,15 @@ class AnalysisTab(ttk.Frame):
         try:
             # Export main effects plot
             fig1 = self.plotter.plot_main_effects()
-            fig1.savefig(os.path.join(directory, f'{base_path}_MainEffects_{date_str}.png'),
-                        dpi=300, bbox_inches='tight')
+            fig1.savefig(os.path.join(directory, f'{base_path}_MainEffects_{date_str}.{file_format}'),
+                        dpi=dpi, bbox_inches='tight')
             plt.close(fig1)
 
             # Export interactions plot
             fig2 = self.plotter.plot_interaction_effects()
             if fig2:
-                fig2.savefig(os.path.join(directory, f'{base_path}_Interactions_{date_str}.png'),
-                            dpi=300, bbox_inches='tight')
+                fig2.savefig(os.path.join(directory, f'{base_path}_Interactions_{date_str}.{file_format}'),
+                            dpi=dpi, bbox_inches='tight')
                 plt.close(fig2)
 
             # Export residuals plot
@@ -2854,15 +2936,16 @@ class AnalysisTab(ttk.Frame):
                 self.results['predictions'],
                 self.results['residuals']
             )
-            fig3.savefig(os.path.join(directory, f'{base_path}_Residuals_{date_str}.png'),
-                        dpi=300, bbox_inches='tight')
+            fig3.savefig(os.path.join(directory, f'{base_path}_Residuals_{date_str}.{file_format}'),
+                        dpi=dpi, bbox_inches='tight')
             plt.close(fig3)
 
             messagebox.showinfo("Success", f"Plots exported to:\n{directory}\n\n"
+                              f"Format: {file_format.upper()}, DPI: {dpi if file_format in ['png', 'tiff'] else 'Vector'}\n\n"
                               f"Files created:\n"
-                              f"- {base_path}_MainEffects_{date_str}.png\n"
-                              f"- {base_path}_Interactions_{date_str}.png\n"
-                              f"- {base_path}_Residuals_{date_str}.png")
+                              f"- {base_path}_MainEffects_{date_str}.{file_format}\n"
+                              f"- {base_path}_Interactions_{date_str}.{file_format}\n"
+                              f"- {base_path}_Residuals_{date_str}.{file_format}")
         except Exception as e:
             messagebox.showerror("Error", f"Export failed:\n{str(e)}")
     
@@ -2984,12 +3067,28 @@ class AnalysisTab(ttk.Frame):
             messagebox.showerror("Error", "Bayesian Optimization not available or not initialized.")
             return
 
-        # Ask user for base name
+        # Ask for format first
+        format_options = self._ask_plot_format()
+        if not format_options['format']:
+            return
+
+        file_format = format_options['format']
+        dpi = format_options['dpi']
         date_str = datetime.now().strftime('%Y%m%d')
+
+        # File type mapping for dialog
+        format_map = {
+            'png': ("PNG files", "*.png"),
+            'tiff': ("TIFF files", "*.tiff"),
+            'pdf': ("PDF files", "*.pdf"),
+            'eps': ("EPS files", "*.eps")
+        }
+
+        # Ask user for base name
         base_name = filedialog.asksaveasfilename(
-            defaultextension=".png",
-            filetypes=[("PNG files", "*.png")],
-            initialfile=f"Experiment_BO_ResponseSurface_{date_str}.png",
+            defaultextension=f".{file_format}",
+            filetypes=[format_map[file_format], ("All files", "*.*")],
+            initialfile=f"Experiment_BO_ResponseSurface_{date_str}.{file_format}",
             title="Choose base name for BO plots (will create multiple files)"
         )
 
@@ -3005,12 +3104,14 @@ class AnalysisTab(ttk.Frame):
             base_path = base_path[:-len(f"_BO_ResponseSurface_{date_str}")]
 
         try:
-            exported_files = self.optimizer.export_bo_plots(directory, base_path, date_str)
+            exported_files = self.optimizer.export_bo_plots(directory, base_path, date_str, file_format, dpi)
 
             if exported_files:
                 filenames = "\\n".join([os.path.basename(f) for f in exported_files])
                 messagebox.showinfo("Success",
-                                  f"Exported {len(exported_files)} BO plots:\\n\\n{filenames}\\n\\nLocation: {directory}")
+                                  f"Exported {len(exported_files)} BO plots\\n\\n"
+                                  f"Format: {file_format.upper()}, DPI: {dpi if file_format in ['png', 'tiff'] else 'Vector'}\\n\\n"
+                                  f"{filenames}\\n\\nLocation: {directory}")
             else:
                 messagebox.showwarning("Warning", "No plots were exported. Check console for details.")
 
