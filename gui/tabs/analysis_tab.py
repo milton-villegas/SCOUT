@@ -1251,12 +1251,14 @@ class BayesianOptimizer:
             traceback.print_exc()
             return None
 
-    def export_bo_plots(self, directory):
+    def export_bo_plots(self, directory, base_name="Experiment", date_str=None):
         """Export individual high-resolution BO plots for publication"""
         if not self.is_initialized:
             raise ValueError("Optimizer not initialized")
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if date_str is None:
+            date_str = datetime.now().strftime('%Y%m%d')
+
         exported_files = []
 
         try:
@@ -1343,7 +1345,7 @@ class BayesianOptimizer:
             ax1.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax1.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath1 = os.path.join(directory, f'BO_Response_Surface_{timestamp}.png')
+            filepath1 = os.path.join(directory, f'{base_name}_BO_ResponseSurface_{date_str}.png')
             fig1.savefig(filepath1, dpi=300, bbox_inches='tight')
             plt.close(fig1)
             exported_files.append(filepath1)
@@ -1373,7 +1375,7 @@ class BayesianOptimizer:
             ax2.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax2.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath2 = os.path.join(directory, f'BO_Acquisition_Function_{timestamp}.png')
+            filepath2 = os.path.join(directory, f'{base_name}_BO_Acquisition_{date_str}.png')
             fig2.savefig(filepath2, dpi=300, bbox_inches='tight')
             plt.close(fig2)
             exported_files.append(filepath2)
@@ -1420,7 +1422,7 @@ class BayesianOptimizer:
             ax3.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax3.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath3 = os.path.join(directory, f'BO_Uncertainty_{timestamp}.png')
+            filepath3 = os.path.join(directory, f'{base_name}_BO_Uncertainty_{date_str}.png')
             fig3.savefig(filepath3, dpi=300, bbox_inches='tight')
             plt.close(fig3)
             exported_files.append(filepath3)
@@ -1456,7 +1458,7 @@ class BayesianOptimizer:
             ax4.grid(True, alpha=0.2, linestyle='-', linewidth=0.8, color='gray')
             ax4.set_facecolor('#FAFAFA')
             plt.tight_layout()
-            filepath4 = os.path.join(directory, f'BO_Progress_{timestamp}.png')
+            filepath4 = os.path.join(directory, f'{base_name}_BO_Progress_{date_str}.png')
             fig4.savefig(filepath4, dpi=300, bbox_inches='tight')
             plt.close(fig4)
             exported_files.append(filepath4)
@@ -1808,10 +1810,16 @@ class BayesianOptimizer:
             
             # Save Excel
             wb.save(excel_path)
-            
-            # Generate CSV path
+
+            # Generate CSV path with standardized naming: [BaseName]_BO_Batch[N]_[Date]_Opentron.csv
             base_path = os.path.splitext(excel_path)[0]
-            csv_path = f"{base_path}_BO_batch{batch_number}_opentron.csv"
+            date_str = datetime.now().strftime('%Y%m%d')
+
+            # Remove existing _Design_YYYYMMDD suffix from original file if present
+            import re
+            base_path = re.sub(r'_Design_\d{8}$', '', base_path)
+
+            csv_path = f"{base_path}_BO_Batch{batch_number}_{date_str}_Opentron.csv"
             
             # Find which pH values are actually used in this batch
             used_ph_values = set()
@@ -2685,17 +2693,30 @@ class AnalysisTab(ttk.Frame):
     
     def export_statistics(self):
         """Export statistics to Excel"""
+        date_str = datetime.now().strftime('%Y%m%d')
+        suggested_name = f"Experiment_Statistics_{date_str}.xlsx"
+
         filepath = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Excel files", "*.xlsx")],
-            initialfile=f"DoE_Statistics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            initialfile=suggested_name
         )
-        
+
         if filepath:
             try:
+                # Generate path with naming convention: [UserName]_Statistics_[Date]
+                base_path = os.path.splitext(filepath)[0]
+
+                # Remove existing suffix if user kept suggested name
+                if base_path.endswith(f"_Statistics_{date_str}"):
+                    base_path = base_path[:-len(f"_Statistics_{date_str}")]
+
+                # Add standardized suffix
+                final_path = f"{base_path}_Statistics_{date_str}.xlsx"
+
                 self.exporter.set_results(self.results, self.main_effects)
-                self.exporter.export_statistics_excel(filepath)
-                messagebox.showinfo("Success", f"Statistics exported to:\n{filepath}")
+                self.exporter.export_statistics_excel(final_path)
+                messagebox.showinfo("Success", f"Statistics exported to:\n{final_path}")
             except Exception as e:
                 messagebox.showerror("Error", f"Export failed:\n{str(e)}")
     
@@ -2791,34 +2812,57 @@ class AnalysisTab(ttk.Frame):
     
     def export_plots(self):
         """Export plots as PNG"""
-        directory = filedialog.askdirectory(title="Select directory to save plots")
-        
-        if directory:
-            try:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                
-                fig1 = self.plotter.plot_main_effects()
-                fig1.savefig(os.path.join(directory, f'main_effects_{timestamp}.png'), 
+        date_str = datetime.now().strftime('%Y%m%d')
+
+        # Ask user for base name first
+        base_name = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png")],
+            initialfile=f"Experiment_MainEffects_{date_str}.png",
+            title="Choose base name for plots (will create multiple files)"
+        )
+
+        if not base_name:
+            return
+
+        # Extract directory and base name without extension
+        directory = os.path.dirname(base_name)
+        base_path = os.path.splitext(os.path.basename(base_name))[0]
+
+        # Remove existing suffix if user kept suggested name
+        if base_path.endswith(f"_MainEffects_{date_str}"):
+            base_path = base_path[:-len(f"_MainEffects_{date_str}")]
+
+        try:
+            # Export main effects plot
+            fig1 = self.plotter.plot_main_effects()
+            fig1.savefig(os.path.join(directory, f'{base_path}_MainEffects_{date_str}.png'),
+                        dpi=300, bbox_inches='tight')
+            plt.close(fig1)
+
+            # Export interactions plot
+            fig2 = self.plotter.plot_interaction_effects()
+            if fig2:
+                fig2.savefig(os.path.join(directory, f'{base_path}_Interactions_{date_str}.png'),
                             dpi=300, bbox_inches='tight')
-                plt.close(fig1)
-                
-                fig2 = self.plotter.plot_interaction_effects()
-                if fig2:
-                    fig2.savefig(os.path.join(directory, f'interactions_{timestamp}.png'),
-                                dpi=300, bbox_inches='tight')
-                    plt.close(fig2)
-                
-                fig3 = self.plotter.plot_residuals(
-                    self.results['predictions'],
-                    self.results['residuals']
-                )
-                fig3.savefig(os.path.join(directory, f'residuals_{timestamp}.png'),
-                            dpi=300, bbox_inches='tight')
-                plt.close(fig3)
-                
-                messagebox.showinfo("Success", f"Plots exported to:\n{directory}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Export failed:\n{str(e)}")
+                plt.close(fig2)
+
+            # Export residuals plot
+            fig3 = self.plotter.plot_residuals(
+                self.results['predictions'],
+                self.results['residuals']
+            )
+            fig3.savefig(os.path.join(directory, f'{base_path}_Residuals_{date_str}.png'),
+                        dpi=300, bbox_inches='tight')
+            plt.close(fig3)
+
+            messagebox.showinfo("Success", f"Plots exported to:\n{directory}\n\n"
+                              f"Files created:\n"
+                              f"- {base_path}_MainEffects_{date_str}.png\n"
+                              f"- {base_path}_Interactions_{date_str}.png\n"
+                              f"- {base_path}_Residuals_{date_str}.png")
+        except Exception as e:
+            messagebox.showerror("Error", f"Export failed:\n{str(e)}")
     
     def export_bo_batch(self):
         """Export BO suggestions to Excel and Opentrons CSV"""
@@ -2938,22 +2982,38 @@ class AnalysisTab(ttk.Frame):
             messagebox.showerror("Error", "Bayesian Optimization not available or not initialized.")
             return
 
-        # Ask user for directory
-        directory = filedialog.askdirectory(title="Select directory to save BO plots")
+        # Ask user for base name
+        date_str = datetime.now().strftime('%Y%m%d')
+        base_name = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png")],
+            initialfile=f"Experiment_BO_ResponseSurface_{date_str}.png",
+            title="Choose base name for BO plots (will create multiple files)"
+        )
 
-        if directory:
-            try:
-                exported_files = self.optimizer.export_bo_plots(directory)
+        if not base_name:
+            return
 
-                if exported_files:
-                    filenames = "\\n".join([os.path.basename(f) for f in exported_files])
-                    messagebox.showinfo("Success",
-                                      f"Exported {len(exported_files)} BO plots:\\n\\n{filenames}\\n\\nLocation: {directory}")
-                else:
-                    messagebox.showwarning("Warning", "No plots were exported. Check console for details.")
+        # Extract directory and base name
+        directory = os.path.dirname(base_name)
+        base_path = os.path.splitext(os.path.basename(base_name))[0]
 
-            except Exception as e:
-                messagebox.showerror("Error", f"Export failed:\\n{str(e)}")
+        # Remove existing suffix if user kept suggested name
+        if base_path.endswith(f"_BO_ResponseSurface_{date_str}"):
+            base_path = base_path[:-len(f"_BO_ResponseSurface_{date_str}")]
+
+        try:
+            exported_files = self.optimizer.export_bo_plots(directory, base_path, date_str)
+
+            if exported_files:
+                filenames = "\\n".join([os.path.basename(f) for f in exported_files])
+                messagebox.showinfo("Success",
+                                  f"Exported {len(exported_files)} BO plots:\\n\\n{filenames}\\n\\nLocation: {directory}")
+            else:
+                messagebox.showwarning("Warning", "No plots were exported. Check console for details.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Export failed:\\n{str(e)}")
 
 
     def load_results(self):

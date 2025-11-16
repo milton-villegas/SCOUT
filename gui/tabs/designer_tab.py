@@ -30,6 +30,7 @@ import csv
 import os
 import re
 from typing import Dict, List, Tuple, Optional
+from datetime import datetime
 import numpy as np
 
 # Optional XLSX export
@@ -2089,20 +2090,30 @@ class DesignerTab(ttk.Frame):
                     f"Please reduce factors/levels or sample size.")
                 return
             
-            # Single-step file save dialog
+            # Single-step file save dialog with suggested name
+            date_str = datetime.now().strftime('%Y%m%d')
+            suggested_name = f"Experiment_Design_{date_str}.xlsx"
+
             path = filedialog.asksaveasfilename(
                 defaultextension=".xlsx",
                 filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
-                title="Save Factorial Design"
+                title="Save Factorial Design",
+                initialfile=suggested_name
             )
-            
+
             if not path:
                 return  # User cancelled
-            
-            # Generate paths
+
+            # Generate paths with naming convention: [UserName]_Design_[Date]
             base_path = os.path.splitext(path)[0]
-            xlsx_path = base_path + ".xlsx"
-            csv_path = base_path + "_opentron.csv"
+
+            # Remove existing _Design_YYYYMMDD suffix if user kept the suggested name
+            if base_path.endswith(f"_Design_{date_str}"):
+                base_path = base_path[:-len(f"_Design_{date_str}")]
+
+            # Add standardized suffix
+            xlsx_path = f"{base_path}_Design_{date_str}.xlsx"
+            csv_path = f"{base_path}_Design_{date_str}_Opentron.csv"
             
             # Export XLSX
             wb = openpyxl.Workbook()
