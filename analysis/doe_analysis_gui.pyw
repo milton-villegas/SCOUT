@@ -870,7 +870,7 @@ class BayesianOptimizer:
         try:
             # Strategy: Use GP model lengthscales (shorter = more important)
             # Get the GP model from Ax
-            model = self.ax_client.generation_strategy.model
+            adapter = self.ax_client.generation_strategy.adapter
 
             # Extract covariance kernel parameters (lengthscales)
             # In Ax/BoTorch, lengthscales indicate how quickly function changes
@@ -880,9 +880,9 @@ class BayesianOptimizer:
             lengthscales = {}
 
             # Try to get lengthscales from the GP model
-            if hasattr(model, 'model') and hasattr(model.model, 'covar_module'):
-                # BoTorch model structure
-                covar = model.model.covar_module
+            if hasattr(adapter, 'adapter') and hasattr(adapter.adapter, 'covar_module'):
+                # BoTorch adapter structure
+                covar = adapter.adapter.covar_module
 
                 # Get base kernel (may be wrapped in ScaleKernel)
                 base_kernel = covar.base_kernel if hasattr(covar, 'base_kernel') else covar
@@ -1095,8 +1095,8 @@ class BayesianOptimizer:
                         from ax.modelbridge import cross_validate
 
                 # Get model for CV
-                model = self.ax_client.generation_strategy.model
-                cv_results = cross_validate(model)
+                adapter = self.ax_client.generation_strategy.adapter
+                cv_results = cross_validate(adapter)
 
                 # Extract predictions vs observed
                 observed = []
@@ -1332,8 +1332,8 @@ class BayesianOptimizer:
                     except ImportError:
                         from ax.modelbridge import cross_validate
 
-                model = self.ax_client.generation_strategy.model
-                cv_results = cross_validate(model)
+                adapter = self.ax_client.generation_strategy.adapter
+                cv_results = cross_validate(adapter)
                 observed = []
                 predicted = []
                 for trial_index, cv_pred in cv_results.items():
