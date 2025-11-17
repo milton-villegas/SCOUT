@@ -636,12 +636,28 @@ class BayesianOptimizer:
         return selected
     
     def get_acquisition_plot(self):
-        """Generate comprehensive BO visualization with 4 panels (GUI preview)"""
+        """Generate comprehensive BO visualization with 4 panels (GUI preview)
+
+        Note: Only for single-objective optimization.
+        For multi-objective, use plot_pareto_frontier() instead.
+        """
         if not self.is_initialized:
             raise ValueError("Optimizer not initialized")
 
+        # This function is only for single-objective
+        if self.is_multi_objective:
+            print("⚠️  get_acquisition_plot() called for multi-objective optimization")
+            print("   Use plot_pareto_frontier() instead for multi-objective")
+            return None
+
+        # Verify we have the response column
+        if self.response_column is None:
+            print("⚠️  No response column set for acquisition plot")
+            return None
+
         # Need at least 2 numeric factors
         if len(self.numeric_factors) < 2:
+            print(f"⚠️  Need at least 2 numeric factors for acquisition plot (have {len(self.numeric_factors)})")
             return None
 
         try:
@@ -716,6 +732,8 @@ class BayesianOptimizer:
                     parameterizations.append(params)
 
             print(f"ℹ️  Predicting {len(parameterizations)} points using BO model...")
+            print(f"   Response metric: {self.response_column}")
+            print(f"   Grid shape: {X.shape}")
 
             # Get predictions with uncertainty
             try:
