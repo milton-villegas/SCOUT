@@ -38,12 +38,14 @@ class DoEAnalyzer:
         self.factor_columns: List[str] = []
         self.categorical_factors: List[str] = []
         self.numeric_factors: List[str] = []
-        self.response_column: Optional[str] = None
+        self.response_column: Optional[str] = None  # Backward compatibility
+        self.response_columns: List[str] = []  # New: support multiple responses
         self.results: Optional[Dict[str, Any]] = None
+        self.all_results: Dict[str, Dict[str, Any]] = {}  # New: results per response
 
     def set_data(self, data: pd.DataFrame, factor_columns: List[str],
                  categorical_factors: List[str], numeric_factors: List[str],
-                 response_column: str) -> None:
+                 response_column: str = None, response_columns: List[str] = None) -> None:
         """
         Set experimental data and factor configuration
 
@@ -52,13 +54,23 @@ class DoEAnalyzer:
             factor_columns: List of column names that are experimental factors
             categorical_factors: Subset of factor_columns that are categorical
             numeric_factors: Subset of factor_columns that are numeric/continuous
-            response_column: Name of the column containing response variable
+            response_column: Name of the column containing response variable (backward compatibility)
+            response_columns: List of response column names (new multi-response support)
         """
         self.data = data.copy()
         self.factor_columns = factor_columns
         self.categorical_factors = categorical_factors
         self.numeric_factors = numeric_factors
-        self.response_column = response_column
+
+        # Support both old (single) and new (multiple) response specification
+        if response_columns is not None:
+            self.response_columns = response_columns if isinstance(response_columns, list) else [response_columns]
+            self.response_column = self.response_columns[0] if self.response_columns else None
+        elif response_column is not None:
+            self.response_column = response_column
+            self.response_columns = [response_column]
+        else:
+            raise ValueError("Must specify either response_column or response_columns")
 
     @staticmethod
     def _build_squared_terms(numeric_factors: List[str]) -> List[str]:
@@ -89,21 +101,23 @@ class DoEAnalyzer:
                 interactions.append(f"{factor_terms[i]}:{factor_terms[j]}")
         return interactions
 
-    def build_formula(self, model_type: str = 'linear') -> str:
+    def build_formula(self, model_type: str = 'linear', response_name: str = None) -> str:
         """
         Build regression formula based on model type
 
         Args:
             model_type: One of 'mean', 'linear', 'interactions', 'quadratic', 'purequadratic', 'reduced'
+            response_name: Name of response column (defaults to self.response_column)
 
         Returns:
             Regression formula string for statsmodels
         """
         self.model_type = model_type
+        response = response_name if response_name is not None else self.response_column
 
         # Mean model - intercept only
         if model_type == 'mean':
-            formula = f"Q('{self.response_column}') ~ 1"
+            formula = f"Q('{response}') ~ 1"
             return formula
 
         # Prepare factor terms
@@ -117,12 +131,12 @@ class DoEAnalyzer:
 
         # Build formula based on model type
         if model_type == 'linear':
-            formula = f"Q('{self.response_column}') ~ " + " + ".join(factor_terms)
+            formula = f"Q('{response}') ~ " + " + ".join(factor_terms)
 
         elif model_type == 'interactions':
             main_effects = " + ".join(factor_terms)
             interactions = self._build_interaction_terms(factor_terms)
-            formula = f"Q('{self.response_column}') ~ {main_effects}"
+            formula = f"Q('{response}') ~ {main_effects}"
             if interactions:
                 formula += " + " + " + ".join(interactions)
 
@@ -130,7 +144,7 @@ class DoEAnalyzer:
             main_effects = " + ".join(factor_terms)
             interactions = self._build_interaction_terms(factor_terms)
             squared_terms = self._build_squared_terms(self.numeric_factors)
-            formula = f"Q('{self.response_column}') ~ {main_effects}"
+            formula = f"Q('{response}') ~ {main_effects}"
             if interactions:
                 formula += " + " + " + ".join(interactions)
             if squared_terms:
@@ -139,7 +153,7 @@ class DoEAnalyzer:
         elif model_type == 'purequadratic':
             main_effects = " + ".join(factor_terms)
             squared_terms = self._build_squared_terms(self.numeric_factors)
-            formula = f"Q('{self.response_column}') ~ {main_effects}"
+            formula = f"Q('{response}') ~ {main_effects}"
             if squared_terms:
                 formula += " + " + " + ".join(squared_terms)
         else:
@@ -219,9 +233,12 @@ class DoEAnalyzer:
         significant = coef_df[coef_df['p-value'] < alpha]
         return [idx for idx in significant.index if idx != 'Intercept']
 
-    def calculate_main_effects(self) -> Dict[str, pd.DataFrame]:
+    def calculate_main_effects(self, response_name: str = None) -> Dict[str, pd.DataFrame]:
         """
         Calculate main effects for each factor
+
+        Args:
+            response_name: Name of response column (defaults to self.response_column)
 
         Returns:
             Dict mapping factor_name → DataFrame with mean/std/count per level
@@ -229,10 +246,11 @@ class DoEAnalyzer:
         if self.data is None:
             raise ValueError("No data available")
 
+        response = response_name if response_name is not None else self.response_column
         main_effects = {}
         for factor in self.factor_columns:
             # Group by factor levels and calculate statistics
-            effects = self.data.groupby(factor)[self.response_column].agg(['mean', 'std', 'count'])
+            effects = self.data.groupby(factor)[response].agg(['mean', 'std', 'count'])
             effects.columns = ['Mean Response', 'Std Dev', 'Count']
             main_effects[factor] = effects
 
@@ -253,7 +271,7 @@ class DoEAnalyzer:
 
         return self.model.predict(X)
 
-    def fit_reduced_quadratic(self, p_remove: float = BACKWARD_ELIMINATION_THRESHOLD):
+    def fit_reduced_quadratic(self, p_remove: float = BACKWARD_ELIMINATION_THRESHOLD, response_name: str = None):
         """
         Fit reduced quadratic model using backward elimination
 
@@ -262,6 +280,7 @@ class DoEAnalyzer:
 
         Args:
             p_remove: P-value threshold for removing terms (default from constants)
+            response_name: Name of response column (defaults to self.response_column)
 
         Returns:
             Fitted statsmodels OLS regression model
@@ -269,7 +288,8 @@ class DoEAnalyzer:
         if self.data is None:
             raise ValueError("No data available")
 
-        formula = self.build_formula('quadratic')
+        response = response_name if response_name is not None else self.response_column
+        formula = self.build_formula('quadratic', response_name=response)
         current_model = smf.ols(formula=formula, data=self.data).fit()
 
         while True:
@@ -295,7 +315,7 @@ class DoEAnalyzer:
                     terms.remove(term_to_remove)
                     if not terms:
                         break
-                    new_formula = f"Q('{self.response_column}') ~ " + " + ".join(terms)
+                    new_formula = f"Q('{response}') ~ " + " + ".join(terms)
                     new_model = smf.ols(formula=new_formula, data=self.data).fit()
                     current_model = new_model
                 else:
@@ -306,9 +326,12 @@ class DoEAnalyzer:
 
         return current_model
 
-    def compare_all_models(self) -> Dict:
+    def compare_all_models(self, response_name: str = None) -> Dict:
         """
         Fit all model types and return comparison statistics
+
+        Args:
+            response_name: Name of response column (defaults to self.response_column)
 
         Returns:
             dict: Comparison data with keys:
@@ -320,6 +343,7 @@ class DoEAnalyzer:
         if self.data is None:
             raise ValueError("No data available")
 
+        response = response_name if response_name is not None else self.response_column
         model_types = ['mean', 'linear', 'interactions', 'quadratic', 'purequadratic', 'reduced']
         comparison_data = {
             'models': {},
@@ -330,9 +354,9 @@ class DoEAnalyzer:
         for model_type in model_types:
             try:
                 if model_type == 'reduced':
-                    fitted_model = self.fit_reduced_quadratic(p_remove=BACKWARD_ELIMINATION_THRESHOLD)
+                    fitted_model = self.fit_reduced_quadratic(p_remove=BACKWARD_ELIMINATION_THRESHOLD, response_name=response)
                 else:
-                    formula = self.build_formula(model_type)
+                    formula = self.build_formula(model_type, response_name=response)
                     fitted_model = smf.ols(formula=formula, data=self.data).fit()
 
                 stats = {
@@ -451,3 +475,100 @@ class DoEAnalyzer:
             'reason': "; ".join(reason_parts),
             'scores': scores
         }
+
+    # ===== Multi-Response Methods =====
+
+    def fit_model_all_responses(self, model_type: str = 'linear') -> Dict[str, Dict]:
+        """
+        Fit regression model for all response columns
+
+        Args:
+            model_type: One of 'linear', 'interactions', 'quadratic', 'purequadratic'
+
+        Returns:
+            Dict mapping response_name → model results dict
+        """
+        if self.data is None:
+            raise ValueError("No data set")
+
+        if not self.response_columns:
+            raise ValueError("No response columns configured")
+
+        self.all_results = {}
+        for response_name in self.response_columns:
+            formula = self.build_formula(model_type, response_name=response_name)
+            model = smf.ols(formula=formula, data=self.data).fit()
+
+            # Store results for this response
+            summary_df = pd.DataFrame({
+                'Coefficient': model.params,
+                'Std Error': model.bse,
+                't-statistic': model.tvalues,
+                'p-value': model.pvalues,
+                'Significant': model.pvalues < SIGNIFICANCE_LEVEL
+            })
+
+            model_stats = {
+                'R-squared': model.rsquared,
+                'Adjusted R-squared': model.rsquared_adj,
+                'RMSE': np.sqrt(model.mse_resid),
+                'F-statistic': model.fvalue,
+                'F p-value': model.f_pvalue,
+                'AIC': model.aic,
+                'BIC': model.bic,
+                'Observations': int(model.nobs),
+                'DF Residuals': int(model.df_resid),
+                'DF Model': int(model.df_model)
+            }
+
+            self.all_results[response_name] = {
+                'coefficients': summary_df,
+                'model_stats': model_stats,
+                'model_type': model_type,
+                'formula': model.model.formula,
+                'predictions': model.fittedvalues,
+                'residuals': model.resid,
+                'model_object': model
+            }
+
+        return self.all_results
+
+    def compare_all_models_all_responses(self) -> Dict[str, Dict]:
+        """
+        Fit all model types for all response columns and return comparison statistics
+
+        Returns:
+            Dict mapping response_name → comparison_data dict (same format as compare_all_models)
+        """
+        if self.data is None:
+            raise ValueError("No data available")
+
+        if not self.response_columns:
+            raise ValueError("No response columns configured")
+
+        all_comparisons = {}
+        for response_name in self.response_columns:
+            comparison_data = self.compare_all_models(response_name=response_name)
+            all_comparisons[response_name] = comparison_data
+
+        return all_comparisons
+
+    def calculate_main_effects_all_responses(self) -> Dict[str, Dict[str, pd.DataFrame]]:
+        """
+        Calculate main effects for each factor across all response columns
+
+        Returns:
+            Dict mapping response_name → {factor_name → DataFrame with mean/std/count}
+        """
+        if self.data is None:
+            raise ValueError("No data available")
+
+        if not self.response_columns:
+            raise ValueError("No response columns configured")
+
+        all_main_effects = {}
+        for response_name in self.response_columns:
+            main_effects = self.calculate_main_effects(response_name=response_name)
+            all_main_effects[response_name] = main_effects
+
+        return all_main_effects

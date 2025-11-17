@@ -548,25 +548,17 @@ class AnalysisTab(ttk.Frame):
         self.update()
 
         try:
-            # Use selected response columns (for Phase 1, analyze first response only)
-            # TODO Phase 2: Handle multiple responses with separate models
-            primary_response = self.selected_responses[0]
-
-            if len(self.selected_responses) > 1:
-                self.status_var.set(f"Analyzing primary response: {primary_response} (multi-response coming soon)")
-                self.update()
-
             # Detect which columns are factors vs response
             self.handler.detect_columns(response_columns=self.selected_responses)
             clean_data = self.handler.preprocess_data()
 
-            # Pass cleaned data to analyzer
+            # Pass cleaned data to analyzer with all selected responses
             self.analyzer.set_data(
                 data=clean_data,
                 factor_columns=self.handler.factor_columns,
                 categorical_factors=self.handler.categorical_factors,
                 numeric_factors=self.handler.numeric_factors,
-                response_column=self.handler.response_column
+                response_columns=self.selected_responses
             )
 
             # Get user's model selection
@@ -584,34 +576,89 @@ class AnalysisTab(ttk.Frame):
 
             selected_model = model_mapping[selected_option]
 
-            # Always compare all models for reference
-            self.status_var.set("Comparing all models...")
-            self.update()
+            # Multi-response analysis: analyze each response separately
+            if len(self.selected_responses) > 1:
+                self.status_var.set(f"Analyzing {len(self.selected_responses)} responses...")
+                self.update()
 
-            self.model_comparison = self.analyzer.compare_all_models()
+                # Compare all models for all responses
+                self.model_comparison_all = self.analyzer.compare_all_models_all_responses()
 
-            # Determine which model to use
-            if selected_model is None:
-                # AUTO MODE - select best model
-                self.model_selection = self.analyzer.select_best_model(self.model_comparison)
-                chosen_model = self.model_selection['recommended_model']
+                # Store best model selection per response
+                self.model_selection_all = {}
+                self.chosen_models = {}
 
-                if chosen_model is None:
-                    raise ValueError("No models could be fitted successfully. Check your data.")
+                for response_name in self.selected_responses:
+                    comparison_data = self.model_comparison_all[response_name]
 
-                mode_description = "Auto-selected"
+                    if selected_model is None:
+                        # AUTO MODE - select best model for each response
+                        model_sel = self.analyzer.select_best_model(comparison_data)
+                        self.model_selection_all[response_name] = model_sel
+                        self.chosen_models[response_name] = model_sel['recommended_model']
+                    else:
+                        # MANUAL MODE - use same model for all responses
+                        self.model_selection_all[response_name] = {
+                            'recommended_model': selected_model,
+                            'reason': 'User selected'
+                        }
+                        self.chosen_models[response_name] = selected_model
+
+                # Fit chosen models for all responses
+                self.all_results = {}
+                self.all_main_effects = {}
+
+                for response_name in self.selected_responses:
+                    chosen_model = self.chosen_models[response_name]
+                    self.all_results[response_name] = self.analyzer.fit_model(
+                        chosen_model
+                    )
+                    # Update formula for this response
+                    formula = self.analyzer.build_formula(chosen_model, response_name=response_name)
+                    model = self.analyzer.model
+                    self.all_results[response_name]['model_object'] = model
+
+                # Calculate main effects for all responses
+                self.all_main_effects = self.analyzer.calculate_main_effects_all_responses()
+
+                # For backward compatibility, use first response as primary
+                self.model_comparison = self.model_comparison_all[self.selected_responses[0]]
+                self.model_selection = self.model_selection_all[self.selected_responses[0]]
+                chosen_model = self.chosen_models[self.selected_responses[0]]
+                self.results = self.all_results[self.selected_responses[0]]
+                self.main_effects = self.all_main_effects[self.selected_responses[0]]
+
+                mode_description = "Auto-selected" if selected_model is None else "User selected"
+
             else:
-                # MANUAL MODE - use user's choice
-                chosen_model = selected_model
-                self.model_selection = {'recommended_model': chosen_model, 'reason': 'User selected'}
-                mode_description = "User selected"
+                # Single response analysis (backward compatible)
+                self.status_var.set("Comparing all models...")
+                self.update()
 
-            self.status_var.set(f"Using {mode_description.lower()} model: {chosen_model}...")
-            self.update()
+                self.model_comparison = self.analyzer.compare_all_models()
 
-            # Fit the chosen model for detailed analysis
-            self.results = self.analyzer.fit_model(chosen_model)
-            self.main_effects = self.analyzer.calculate_main_effects()
+                # Determine which model to use
+                if selected_model is None:
+                    # AUTO MODE - select best model
+                    self.model_selection = self.analyzer.select_best_model(self.model_comparison)
+                    chosen_model = self.model_selection['recommended_model']
+
+                    if chosen_model is None:
+                        raise ValueError("No models could be fitted successfully. Check your data.")
+
+                    mode_description = "Auto-selected"
+                else:
+                    # MANUAL MODE - use user's choice
+                    chosen_model = selected_model
+                    self.model_selection = {'recommended_model': chosen_model, 'reason': 'User selected'}
+                    mode_description = "User selected"
+
+                self.status_var.set(f"Using {mode_description.lower()} model: {chosen_model}...")
+                self.update()
+
+                # Fit the chosen model for detailed analysis
+                self.results = self.analyzer.fit_model(chosen_model)
+                self.main_effects = self.analyzer.calculate_main_effects()
 
             self.display_statistics()
             self.display_plots()
@@ -626,15 +673,29 @@ class AnalysisTab(ttk.Frame):
 
             # Show completion status
             chosen_model_name = self.analyzer.MODEL_TYPES[chosen_model]
-            self.status_var.set(f"Analysis complete! Model: {chosen_model_name} | R² = {self.results['model_stats']['R-squared']:.4f}")
 
-            messagebox.showinfo("Success",
-                              f"Analysis completed successfully!\n\n"
-                              f"{mode_description} Model: {chosen_model_name}\n"
-                              f"Observations: {self.results['model_stats']['Observations']}\n"
-                              f"R-squared: {self.results['model_stats']['R-squared']:.4f}\n"
-                              f"Adjusted R-squared: {self.results['model_stats']['Adjusted R-squared']:.4f}\n\n"
-                              f"Check the Results tab for detailed analysis.")
+            if len(self.selected_responses) > 1:
+                # Multi-response completion message
+                avg_r2 = sum(r['model_stats']['R-squared'] for r in self.all_results.values()) / len(self.all_results)
+                self.status_var.set(f"Analysis complete! {len(self.selected_responses)} responses analyzed | Avg R² = {avg_r2:.4f}")
+
+                messagebox.showinfo("Success",
+                                  f"Multi-response analysis completed successfully!\n\n"
+                                  f"Responses analyzed: {len(self.selected_responses)}\n"
+                                  f"Average R-squared: {avg_r2:.4f}\n"
+                                  f"Observations: {self.results['model_stats']['Observations']}\n\n"
+                                  f"Check the Results tab for detailed analysis of each response.")
+            else:
+                # Single response completion message
+                self.status_var.set(f"Analysis complete! Model: {chosen_model_name} | R² = {self.results['model_stats']['R-squared']:.4f}")
+
+                messagebox.showinfo("Success",
+                                  f"Analysis completed successfully!\n\n"
+                                  f"{mode_description} Model: {chosen_model_name}\n"
+                                  f"Observations: {self.results['model_stats']['Observations']}\n"
+                                  f"R-squared: {self.results['model_stats']['R-squared']:.4f}\n"
+                                  f"Adjusted R-squared: {self.results['model_stats']['Adjusted R-squared']:.4f}\n\n"
+                                  f"Check the Results tab for detailed analysis.")
 
         except Exception as e:
             messagebox.showerror("Analysis Failed",
@@ -645,6 +706,129 @@ class AnalysisTab(ttk.Frame):
             import traceback
             traceback.print_exc()
     
+    def _display_single_response_statistics(self, results, model_comparison, model_selection, response_name):
+        """Display statistics for a single response (helper for multi-response display)"""
+        # MODEL COMPARISON SECTION
+        if model_comparison:
+            self.stats_text.insert(tk.END, "📊 MODEL COMPARISON\n")
+            self.stats_text.insert(tk.END, "-"*80 + "\n\n")
+
+            comparison_table = model_comparison['comparison_table']
+
+            if comparison_table is not None and not comparison_table.empty:
+                self.stats_text.insert(tk.END, "Model Comparison (all 5 models fitted):\n\n")
+
+                header = f"{'Model':<30} {'Adj R²':>10} {'BIC':>10} {'RMSE':>10} {'DF':>6}  {'Selected':>10}\n"
+                self.stats_text.insert(tk.END, header)
+                self.stats_text.insert(tk.END, "-"*80 + "\n")
+
+                recommended_model = model_selection['recommended_model']
+                is_auto = self.model_selection_var.get() == 'Auto (Recommended)'
+
+                model_order = ['mean', 'linear', 'interactions', 'quadratic', 'reduced']
+                for model_type in model_order:
+                    if model_type in model_comparison['models']:
+                        stats = model_comparison['models'][model_type]
+                        model_name = stats['Model Type']
+
+                        marker = ("✓ AUTO" if is_auto else "✓ USER") if model_type == recommended_model else ""
+
+                        line = (f"{model_name:<30} "
+                               f"{stats['Adj R²']:>10.4f} "
+                               f"{stats['BIC']:>10.1f} "
+                               f"{stats['RMSE']:>10.4f} "
+                               f"{stats['DF Model']:>6} "
+                               f"{marker:>10}\n")
+                        self.stats_text.insert(tk.END, line)
+
+                self.stats_text.insert(tk.END, "\n" + "-"*80 + "\n")
+                self.stats_text.insert(tk.END, f"🎯 RECOMMENDED: {self.analyzer.MODEL_TYPES[recommended_model]}\n")
+                self.stats_text.insert(tk.END, f"   Reason: {model_selection['reason']}\n")
+
+                self.stats_text.insert(tk.END, "\n💡 Selection criteria: Adjusted R² (60%), BIC (30%), Parsimony (10%)\n")
+                self.stats_text.insert(tk.END, "   Higher Adj R² is better | Lower BIC is better | Simpler models preferred\n")
+
+            self.stats_text.insert(tk.END, "\n" + "="*80 + "\n\n")
+
+        # RED FLAGS / WARNINGS
+        r_squared = results['model_stats']['R-squared']
+        n_obs = results['model_stats']['Observations']
+
+        # Get significant factors for this response
+        sig_factors = []
+        for idx in results['coefficients'].index:
+            if idx != 'Intercept' and results['coefficients'].loc[idx, 'p-value'] < 0.05:
+                sig_factors.append(idx)
+
+        warnings = []
+        if r_squared < 0.5:
+            warnings.append(f"⚠️  LOW R² ({r_squared:.3f}): Model explains only {r_squared*100:.1f}% of variance")
+        elif r_squared < 0.7:
+            warnings.append(f"⚠️  MODERATE R² ({r_squared:.3f}): Model is acceptable but could be improved")
+
+        if len(sig_factors) == 0:
+            warnings.append("⚠️  NO SIGNIFICANT FACTORS: No factors with p < 0.05 found")
+
+        if n_obs < 20:
+            warnings.append(f"⚠️  SMALL SAMPLE SIZE: Only {n_obs} observations")
+
+        if warnings:
+            self.stats_text.insert(tk.END, "🚩 RED FLAGS / WARNINGS\n")
+            self.stats_text.insert(tk.END, "-"*80 + "\n")
+            for warning in warnings:
+                self.stats_text.insert(tk.END, f"{warning}\n")
+            self.stats_text.insert(tk.END, "\n" + "="*80 + "\n\n")
+
+        # MODEL STATISTICS
+        self.stats_text.insert(tk.END, "MODEL STATISTICS\n")
+        self.stats_text.insert(tk.END, "-"*80 + "\n")
+        for key, value in results['model_stats'].items():
+            if isinstance(value, float):
+                self.stats_text.insert(tk.END, f"  {key:<25}: {value:>15.6f}\n")
+            else:
+                self.stats_text.insert(tk.END, f"  {key:<25}: {value:>15}\n")
+
+        self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+        self.stats_text.insert(tk.END, "COEFFICIENTS\n")
+        self.stats_text.insert(tk.END, "-"*80 + "\n\n")
+
+        coef_str = results['coefficients'].to_string()
+        self.stats_text.insert(tk.END, coef_str + "\n")
+
+        # SIGNIFICANT FACTORS
+        self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+        self.stats_text.insert(tk.END, f"SIGNIFICANT FACTORS (p < 0.05): {len(sig_factors)} found\n")
+        self.stats_text.insert(tk.END, "-"*80 + "\n")
+
+        if sig_factors:
+            factor_importance = []
+            for factor in sig_factors:
+                coef = results['coefficients'].loc[factor, 'Coefficient']
+                pval = results['coefficients'].loc[factor, 'p-value']
+                factor_importance.append((factor, abs(coef), coef, pval))
+
+            factor_importance.sort(key=lambda x: x[1], reverse=True)
+
+            self.stats_text.insert(tk.END, "Ranked by effect size (most important first):\n\n")
+            for rank, (factor, abs_coef, coef, pval) in enumerate(factor_importance, 1):
+                self.stats_text.insert(tk.END, f"  {rank}. {factor:<38} coef={coef:>10.4f}  p={pval:.2e}\n")
+        else:
+            self.stats_text.insert(tk.END, "  None found - no factors are statistically significant.\n")
+
+        # INTERACTIONS
+        interaction_factors = [f for f in sig_factors if ':' in f]
+        if interaction_factors:
+            self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+            self.stats_text.insert(tk.END, f"⚡ SIGNIFICANT INTERACTIONS DETECTED: {len(interaction_factors)}\n")
+            self.stats_text.insert(tk.END, "-"*80 + "\n")
+            for interaction in interaction_factors:
+                coef = results['coefficients'].loc[interaction, 'Coefficient']
+                pval = results['coefficients'].loc[interaction, 'p-value']
+                self.stats_text.insert(tk.END, f"  {interaction:<40} coef={coef:>10.4f}  p={pval:.2e}\n")
+            self.stats_text.insert(tk.END, "\n⚠️  Interactions mean optimal settings depend on factor combinations!\n")
+
+        self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+
     def display_statistics(self):
         """Display statistical results with recommendations and warnings"""
         self.stats_text.delete('1.0', tk.END)
@@ -652,6 +836,28 @@ class AnalysisTab(ttk.Frame):
         self.stats_text.insert(tk.END, "="*80 + "\n")
         self.stats_text.insert(tk.END, "DOE ANALYSIS RESULTS\n")
         self.stats_text.insert(tk.END, "="*80 + "\n\n")
+
+        # Multi-response analysis: display results for each response
+        if hasattr(self, 'all_results') and len(self.all_results) > 1:
+            self.stats_text.insert(tk.END, f"🔬 MULTI-RESPONSE ANALYSIS ({len(self.all_results)} responses selected)\n")
+            self.stats_text.insert(tk.END, "="*80 + "\n\n")
+
+            for response_idx, response_name in enumerate(self.selected_responses, 1):
+                self.stats_text.insert(tk.END, f"\n{'█'*80}\n")
+                self.stats_text.insert(tk.END, f"RESPONSE {response_idx}/{len(self.selected_responses)}: {response_name}\n")
+                self.stats_text.insert(tk.END, f"{'█'*80}\n\n")
+
+                # Display statistics for this response
+                self._display_single_response_statistics(
+                    results=self.all_results[response_name],
+                    model_comparison=self.model_comparison_all[response_name],
+                    model_selection=self.model_selection_all[response_name],
+                    response_name=response_name
+                )
+
+            return
+
+        # Single response (backward compatible)
 
         # MODEL COMPARISON SECTION - Show all models and selection
         if hasattr(self, 'model_comparison') and self.model_comparison:
