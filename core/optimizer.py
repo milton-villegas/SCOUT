@@ -258,10 +258,17 @@ class BayesianOptimizer:
         try:
             # Get Pareto frontier from Ax
             pareto_frontier = self.ax_client.get_pareto_optimal_parameters()
+            print(f"DEBUG: get_pareto_frontier() - Got {len(pareto_frontier)} Pareto points")
 
             # Convert to more usable format
             pareto_points = []
-            for arm_name, (params, values) in pareto_frontier.items():
+            for idx, (arm_name, (params, values)) in enumerate(pareto_frontier.items()):
+                if idx == 0:  # Debug first point
+                    print(f"DEBUG: First Pareto point:")
+                    print(f"  arm_name: {arm_name}")
+                    print(f"  params type: {type(params)}, value: {params}")
+                    print(f"  values type: {type(values)}, value: {values}")
+
                 # Convert sanitized names back to original
                 original_params = {}
                 for sanitized_name, value in params.items():
@@ -351,6 +358,10 @@ class BayesianOptimizer:
                       label='Observed', zorder=1, edgecolors='gray', linewidths=0.5)
 
             # Plot Pareto frontier points
+            print(f"DEBUG: Extracting Pareto objectives for {resp1} and {resp2}")
+            if len(pareto_points) > 0:
+                print(f"DEBUG: First pareto point objectives type: {type(pareto_points[0]['objectives'])}")
+                print(f"DEBUG: First pareto point objectives value: {pareto_points[0]['objectives']}")
             pareto_r1 = [p['objectives'][resp1] for p in pareto_points]
             pareto_r2 = [p['objectives'][resp2] for p in pareto_points]
             ax.scatter(pareto_r1, pareto_r2, c=self.COLORS['primary'], s=200,
@@ -388,6 +399,10 @@ class BayesianOptimizer:
                       label='Observed', edgecolors='gray', linewidths=0.5)
 
             # Plot Pareto frontier points
+            print(f"DEBUG: Extracting 3D Pareto objectives for {resp1}, {resp2}, {resp3}")
+            if len(pareto_points) > 0:
+                print(f"DEBUG: First pareto point objectives type: {type(pareto_points[0]['objectives'])}")
+                print(f"DEBUG: First pareto point objectives value: {pareto_points[0]['objectives']}")
             pareto_r1 = [p['objectives'][resp1] for p in pareto_points]
             pareto_r2 = [p['objectives'][resp2] for p in pareto_points]
             pareto_r3 = [p['objectives'][resp3] for p in pareto_points]

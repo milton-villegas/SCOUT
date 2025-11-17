@@ -1279,7 +1279,9 @@ class AnalysisTab(ttk.Frame):
         try:
             # Multi-objective: Show Pareto frontier
             if self.optimizer.is_multi_objective:
+                print(f"DEBUG: Calling plot_pareto_frontier() for {len(self.optimizer.response_columns)} objectives")
                 fig = self.optimizer.plot_pareto_frontier()
+                print(f"DEBUG: plot_pareto_frontier() returned fig={fig is not None}")
 
                 if fig is None:
                     message_label = ttk.Label(
@@ -1357,6 +1359,16 @@ class AnalysisTab(ttk.Frame):
             plt.close(fig)
 
         except Exception as e:
+            print(f"\n{'='*60}")
+            print(f"❌ DISPLAY OPTIMIZATION PLOT ERROR")
+            print(f"{'='*60}")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            print(f"{'='*60}")
+            import traceback
+            traceback.print_exc()
+            print(f"{'='*60}\n")
+
             error_label = ttk.Label(
                 self.optimization_frame,
                 text=f"Could not generate optimization plot:\n{str(e)}\n\n"
