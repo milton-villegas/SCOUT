@@ -585,9 +585,9 @@ class TestDoEAnalyzerSelectBestModel:
         comparison = analyzer.compare_all_models()
         best = analyzer.select_best_model(comparison)
 
-        assert 'selected_model' in best
+        assert 'recommended_model' in best
         assert 'reason' in best
-        assert 'score' in best
+        assert 'scores' in best
 
     def test_select_best_model_chooses_valid_type(self, simple_2factor_data):
         """Test that selected model is one of the valid types"""
@@ -604,7 +604,7 @@ class TestDoEAnalyzerSelectBestModel:
         best = analyzer.select_best_model(comparison)
 
         valid_types = ['mean', 'linear', 'interactions', 'quadratic', 'purequadratic', 'reduced']
-        assert best['selected_model'] in valid_types
+        assert best['recommended_model'] in valid_types
 
 
 class TestDoEAnalyzerReducedQuadratic:
