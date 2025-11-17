@@ -748,7 +748,23 @@ class BayesianOptimizer:
                 idx = 0
                 for i in range(X.shape[0]):
                     for j in range(X.shape[1]):
-                        pred_mean, pred_sem = predictions_list[idx][self.response_column]
+                        # Get prediction for this point
+                        pred = predictions_list[idx]
+
+                        # Handle different return formats from Ax
+                        if isinstance(pred, dict):
+                            # Format: {metric_name: (mean, sem)}
+                            pred_mean, pred_sem = pred[self.response_column]
+                        elif isinstance(pred, tuple) and len(pred) == 2:
+                            # Format: (mean_dict, sem_dict) or just (mean, sem)
+                            if isinstance(pred[0], dict):
+                                pred_mean = pred[0][self.response_column]
+                                pred_sem = pred[1][self.response_column]
+                            else:
+                                pred_mean, pred_sem = pred
+                        else:
+                            raise ValueError(f"Unexpected prediction format: {type(pred)}, value: {pred}")
+
                         Z_mean[i, j] = pred_mean
                         Z_sem[i, j] = pred_sem
                         idx += 1
