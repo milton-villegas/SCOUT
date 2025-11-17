@@ -92,6 +92,9 @@ class AnalysisTab(ttk.Frame):
         self.selected_responses = []  # List of selected response column names
         self.response_directions = {}  # {column_name: 'maximize' or 'minimize'}
 
+        # Results tab reference (will be created on demand)
+        self.results_tab = None
+
         # Setup GUI
         self.setup_gui()
         
@@ -103,17 +106,17 @@ class AnalysisTab(ttk.Frame):
         title_frame.pack(fill='x', padx=10, pady=5)
 
         # File selection
-        file_frame = ttk.LabelFrame(self, text="1. Select Data File", padding=10)
+        file_frame = ttk.LabelFrame(self, text="Select Data File", padding=10)
         file_frame.pack(fill='x', padx=10, pady=5)
-        
+
         self.file_label = ttk.Label(file_frame, text="No file selected")
         self.file_label.pack(side='left', padx=5)
-        
+
         browse_btn = ttk.Button(file_frame, text="Browse...", command=self.browse_file)
         browse_btn.pack(side='right', padx=5)
 
         # Response selection
-        self.response_frame = ttk.LabelFrame(self, text="2. Select Response Variables", padding=10)
+        self.response_frame = ttk.LabelFrame(self, text="Select Response Variables", padding=10)
         self.response_frame.pack(fill='x', padx=10, pady=5)
 
         self.response_label = ttk.Label(self.response_frame,
@@ -121,7 +124,7 @@ class AnalysisTab(ttk.Frame):
         self.response_label.pack(padx=5, pady=5)
 
         # Configuration
-        config_frame = ttk.LabelFrame(self, text="3. Configure Analysis", padding=10)
+        config_frame = ttk.LabelFrame(self, text="Configure Analysis", padding=10)
         config_frame.pack(fill='x', padx=10, pady=5)
         
         # Model Type row with info button
@@ -145,93 +148,98 @@ class AnalysisTab(ttk.Frame):
         info_btn = ttk.Button(config_frame, text="?", width=2, command=self.show_model_guide)
         info_btn.grid(row=0, column=2, sticky='w', padx=(2, 0), pady=5)
         
-        self.analyze_btn = ttk.Button(config_frame, text="Analyze Data", 
+        self.analyze_btn = ttk.Button(config_frame, text="Analyze Data",
                                       command=self.analyze_data, state='disabled')
         self.analyze_btn.grid(row=0, column=3, padx=20, pady=5)
-        
+
         # Status bar
         self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(self, textvariable=self.status_var, 
+        status_bar = ttk.Label(self, textvariable=self.status_var,
                               relief=tk.SUNKEN, anchor='w')
         status_bar.pack(fill='x', side='bottom')
-        
-        # Export buttons
-        export_frame = ttk.LabelFrame(self, text="5. Export Results", padding=10)
-        export_frame.pack(fill='x', side='bottom', padx=10, pady=5)
-        
+
+    def create_results_tab(self):
+        """Create the Results tab with results notebook and export buttons"""
+        if self.results_tab is not None:
+            # Results tab already created
+            return
+
+        # Get the parent notebook from main_window
+        parent_notebook = self.main_window.notebook
+
+        # Create Results tab
+        self.results_tab = ttk.Frame(parent_notebook)
+        parent_notebook.add(self.results_tab, text="Results")
+
+        # Export buttons at top
+        export_frame = ttk.LabelFrame(self.results_tab, text="Export Results", padding=10)
+        export_frame.pack(fill='x', padx=10, pady=5)
+
         self.export_stats_btn = ttk.Button(export_frame, text="Export Statistics (.xlxs)",
                                           command=self.export_statistics, state='disabled')
         self.export_stats_btn.pack(side='left', padx=5)
-        
+
         self.export_plots_btn = ttk.Button(export_frame, text="Export Plots (.png)",
                                           command=self.export_plots, state='disabled')
         self.export_plots_btn.pack(side='left', padx=5)
-        
+
         # Results notebook
-        results_frame = ttk.LabelFrame(self, text="4. Results", padding=5)
+        results_frame = ttk.LabelFrame(self.results_tab, text="Analysis Results", padding=5)
         results_frame.pack(fill='both', expand=True, padx=10, pady=5)
-        
-        # It was needed to create a canvas with scrollbar for results to prevent expanding too much
+
         results_container = ttk.Frame(results_frame)
         results_container.pack(fill='both', expand=True)
-        
+
         self.notebook = ttk.Notebook(results_container)
         self.notebook.pack(fill='both', expand=True)
-        
+
         # Tab 1: Statistics
         self.stats_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.stats_frame, text="Statistics")
-        
+
         self.stats_text = scrolledtext.ScrolledText(self.stats_frame, wrap=tk.WORD, font=('Courier', 14))
         self.stats_text.pack(fill='both', expand=True, padx=5, pady=5)
-        
+
         # Tab 2: Main Effects
         main_effects_container = ttk.Frame(self.notebook)
         self.notebook.add(main_effects_container, text="Main Effects")
-        
-        # Tooltip button for main effects
+
         me_header = ttk.Frame(main_effects_container)
         me_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(me_header, text="Main Effects Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
         ttk.Button(me_header, text="ℹ️ How to Read", width=15,
                   command=lambda: self.show_tooltip("main_effects")).pack(side='right', padx=5)
-        
-        # Scrollable frame for main effects plot
+
         self.main_effects_frame = self.create_scrollable_frame(main_effects_container)
-        
+
         # Tab 3: Interactions
         interactions_container = ttk.Frame(self.notebook)
         self.notebook.add(interactions_container, text="Interactions")
-        
-        # Tooltip button for interactions
+
         int_header = ttk.Frame(interactions_container)
         int_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(int_header, text="Interaction Effects Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
         ttk.Button(int_header, text="ℹ️ How to Read", width=15,
                   command=lambda: self.show_tooltip("interactions")).pack(side='right', padx=5)
-        
-        # Scrollable frame for interactions plot
+
         self.interactions_frame = self.create_scrollable_frame(interactions_container)
-        
+
         # Tab 4: Residuals
         residuals_container = ttk.Frame(self.notebook)
         self.notebook.add(residuals_container, text="Residuals")
-        
-        # Tooltip button for residuals
+
         res_header = ttk.Frame(residuals_container)
         res_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(res_header, text="Residuals Diagnostic Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
         ttk.Button(res_header, text="ℹ️ How to Read", width=15,
                   command=lambda: self.show_tooltip("residuals")).pack(side='right', padx=5)
-        
-        # Scrollable frame for residuals plot
+
         self.residuals_frame = self.create_scrollable_frame(residuals_container)
-        
+
         # Tab 5: Recommendations
         self.recommendations_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.recommendations_frame, text="Recommendations")
 
-        # Add button frame at top for BO batch export
         if AX_AVAILABLE:
             button_frame = ttk.Frame(self.recommendations_frame)
             button_frame.pack(fill='x', padx=5, pady=5)
@@ -246,19 +254,17 @@ class AnalysisTab(ttk.Frame):
         self.recommendations_text = scrolledtext.ScrolledText(self.recommendations_frame,
                                                              wrap=tk.WORD, font=('Courier', 14))
         self.recommendations_text.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        # Tab 6: Optimization Details (Bayesian Optimization plot)
+
+        # Tab 6: Optimization Details
         if AX_AVAILABLE:
             optimization_container = ttk.Frame(self.notebook)
             self.notebook.add(optimization_container, text="Optimization Details")
 
-            # Tooltip button for optimization and export button
             opt_header = ttk.Frame(optimization_container)
             opt_header.pack(fill='x', padx=5, pady=2)
             ttk.Label(opt_header, text="Bayesian Optimization Analysis",
                      font=('TkDefaultFont', 10, 'bold')).pack(side='left')
 
-            # Export BO Plots button
             self.export_bo_plots_button = ttk.Button(opt_header, text="📊 Export BO Plots",
                                                      command=self.export_bo_plots_gui, state='disabled')
             self.export_bo_plots_button.pack(side='right', padx=5)
@@ -266,7 +272,6 @@ class AnalysisTab(ttk.Frame):
             ttk.Button(opt_header, text="ℹ️ How to Read", width=15,
                       command=lambda: self.show_tooltip("optimization")).pack(side='right', padx=5)
 
-            # Scrollable frame for optimization plot
             self.optimization_frame = self.create_scrollable_frame(optimization_container)
     
     def create_scrollable_frame(self, parent):
@@ -615,6 +620,9 @@ class AnalysisTab(ttk.Frame):
             self.results = self.analyzer.fit_model(chosen_model)
             self.main_effects = self.analyzer.calculate_main_effects()
 
+            # Create Results tab if it doesn't exist
+            self.create_results_tab()
+
             self.display_statistics()
             self.display_plots()
             self.display_recommendations()
@@ -629,6 +637,13 @@ class AnalysisTab(ttk.Frame):
             # Show completion status
             chosen_model_name = self.analyzer.MODEL_TYPES[chosen_model]
             self.status_var.set(f"Analysis complete! Model: {chosen_model_name} | R² = {self.results['model_stats']['R-squared']:.4f}")
+
+            # Switch to Results tab
+            parent_notebook = self.main_window.notebook
+            for i in range(parent_notebook.index('end')):
+                if parent_notebook.tab(i, 'text') == "Results":
+                    parent_notebook.select(i)
+                    break
 
             messagebox.showinfo("Success",
                               f"Analysis completed successfully!\n\n"
