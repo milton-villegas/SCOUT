@@ -91,11 +91,24 @@ def validate_alphanumeric_input(action, char, entry_value):
 
 class FactorModel:
     """Model with validation for factors and stock concentrations"""
+
     def __init__(self):
+        """Initialize empty FactorModel with no factors or stock concentrations"""
         self._factors: Dict[str, List[str]] = {}
         self._stock_concs: Dict[str, float] = {}
-        
+
     def add_factor(self, name: str, levels: List[str], stock_conc: Optional[float] = None):
+        """
+        Add a new factor to the model.
+
+        Args:
+            name: Factor name (e.g., 'nacl', 'buffer pH')
+            levels: List of factor levels as strings
+            stock_conc: Optional stock concentration for volume calculations
+
+        Raises:
+            ValueError: If name is empty or levels list is empty
+        """
         name = name.strip()
         if not name:
             raise ValueError("Factor name cannot be empty.")
@@ -104,8 +117,19 @@ class FactorModel:
         self._factors[name] = list(levels)
         if stock_conc is not None:
             self._stock_concs[name] = stock_conc
-    
+
     def update_factor(self, name: str, levels: List[str], stock_conc: Optional[float] = None):
+        """
+        Update an existing factor's levels and/or stock concentration.
+
+        Args:
+            name: Factor name to update
+            levels: New list of factor levels
+            stock_conc: Optional new stock concentration
+
+        Raises:
+            ValueError: If factor doesn't exist or levels list is empty
+        """
         if name not in self._factors:
             raise ValueError(f"Factor '{name}' does not exist.")
         if not levels:
@@ -113,27 +137,61 @@ class FactorModel:
         self._factors[name] = list(levels)
         if stock_conc is not None:
             self._stock_concs[name] = stock_conc
-    
+
     def remove_factor(self, name: str):
+        """
+        Remove a factor and its stock concentration from the model.
+
+        Args:
+            name: Factor name to remove
+        """
         if name in self._factors:
             del self._factors[name]
         if name in self._stock_concs:
             del self._stock_concs[name]
-    
+
     def get_factors(self) -> Dict[str, List[str]]:
+        """
+        Get all factors and their levels.
+
+        Returns:
+            Dictionary mapping factor names to level lists (copy)
+        """
         return {k: list(v) for k, v in self._factors.items()}
-    
+
     def get_stock_conc(self, name: str) -> Optional[float]:
+        """
+        Get stock concentration for a specific factor.
+
+        Args:
+            name: Factor name
+
+        Returns:
+            Stock concentration or None if not set
+        """
         return self._stock_concs.get(name)
-    
+
     def get_all_stock_concs(self) -> Dict[str, float]:
+        """
+        Get all stock concentrations.
+
+        Returns:
+            Dictionary mapping factor names to stock concentrations (copy)
+        """
         return dict(self._stock_concs)
-    
+
     def clear(self):
+        """Remove all factors and stock concentrations from the model"""
         self._factors.clear()
         self._stock_concs.clear()
-    
+
     def total_combinations(self) -> int:
+        """
+        Calculate total number of full factorial combinations.
+
+        Returns:
+            Product of all factor level counts, or 0 if no factors
+        """
         if not self._factors:
             return 0
         # Multiply all factor level counts (full factorial)
@@ -568,6 +626,14 @@ class DesignerTab(ttk.Frame):
     }
 
     def __init__(self, parent, project, main_window):
+        """
+        Initialize the Designer Tab.
+
+        Args:
+            parent: Parent tkinter widget
+            project: Project instance for data persistence
+            main_window: Main application window reference
+        """
         super().__init__(parent)
         self.project = project
         self.main_window = main_window
@@ -575,8 +641,9 @@ class DesignerTab(ttk.Frame):
         self.model = FactorModel()
         self._build_ui()
         self._update_display()
-    
+
     def _build_ui(self):
+        """Build the complete Designer Tab user interface"""
         # Configure grid
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
