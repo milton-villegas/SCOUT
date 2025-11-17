@@ -497,4 +497,158 @@ class TestDoEAnalyzerIntegration:
         quad_r2 = quad_results['model_stats']['R-squared']
 
         assert quad_r2 > linear_r2
-        assert quad_r2 > 0.95  # Should be very good fit
+
+
+class TestDoEAnalyzerCompareModels:
+    """Test model comparison functionality"""
+
+    def test_compare_all_models_runs(self, simple_2factor_data):
+        """Test that compare_all_models executes without errors"""
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=simple_2factor_data,
+            factor_columns=['Factor1', 'Factor2'],
+            categorical_factors=[],
+            numeric_factors=['Factor1', 'Factor2'],
+            response_column='Response'
+        )
+
+        comparison = analyzer.compare_all_models()
+
+        assert 'models' in comparison
+        assert 'comparison_table' in comparison
+        assert 'fitted_models' in comparison
+        assert 'errors' in comparison
+
+    def test_compare_all_models_includes_all_types(self, simple_2factor_data):
+        """Test that all model types are compared"""
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=simple_2factor_data,
+            factor_columns=['Factor1', 'Factor2'],
+            categorical_factors=[],
+            numeric_factors=['Factor1', 'Factor2'],
+            response_column='Response'
+        )
+
+        comparison = analyzer.compare_all_models()
+        models = comparison['models']
+
+        # Check that major model types are present
+        assert 'mean' in models
+        assert 'linear' in models
+        assert 'interactions' in models
+
+    def test_compare_models_no_data_raises_error(self):
+        """Test that comparing models without data raises error"""
+        analyzer = DoEAnalyzer()
+
+        with pytest.raises(ValueError, match="No data available"):
+            analyzer.compare_all_models()
+
+    def test_compare_models_has_statistics(self, simple_2factor_data):
+        """Test that comparison includes key statistics"""
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=simple_2factor_data,
+            factor_columns=['Factor1', 'Factor2'],
+            categorical_factors=[],
+            numeric_factors=['Factor1', 'Factor2'],
+            response_column='Response'
+        )
+
+        comparison = analyzer.compare_all_models()
+
+        # Check linear model has required stats
+        linear_stats = comparison['models']['linear']
+        assert 'R²' in linear_stats
+        assert 'Adj R²' in linear_stats
+        assert 'RMSE' in linear_stats
+        assert 'AIC' in linear_stats
+        assert 'BIC' in linear_stats
+
+
+class TestDoEAnalyzerSelectBestModel:
+    """Test best model selection"""
+
+    def test_select_best_model_returns_choice(self, simple_2factor_data):
+        """Test that select_best_model returns a model choice"""
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=simple_2factor_data,
+            factor_columns=['Factor1', 'Factor2'],
+            categorical_factors=[],
+            numeric_factors=['Factor1', 'Factor2'],
+            response_column='Response'
+        )
+
+        comparison = analyzer.compare_all_models()
+        best = analyzer.select_best_model(comparison)
+
+        assert 'recommended_model' in best
+        assert 'reason' in best
+        assert 'scores' in best
+
+    def test_select_best_model_chooses_valid_type(self, simple_2factor_data):
+        """Test that selected model is one of the valid types"""
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=simple_2factor_data,
+            factor_columns=['Factor1', 'Factor2'],
+            categorical_factors=[],
+            numeric_factors=['Factor1', 'Factor2'],
+            response_column='Response'
+        )
+
+        comparison = analyzer.compare_all_models()
+        best = analyzer.select_best_model(comparison)
+
+        valid_types = ['mean', 'linear', 'interactions', 'quadratic', 'purequadratic', 'reduced']
+        assert best['recommended_model'] in valid_types
+
+
+class TestDoEAnalyzerReducedQuadratic:
+    """Test reduced quadratic model with backward elimination"""
+
+    def test_fit_reduced_quadratic_returns_model(self, quadratic_data):
+        """Test that fit_reduced_quadratic returns a model"""
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=quadratic_data,
+            factor_columns=['Factor1'],
+            categorical_factors=[],
+            numeric_factors=['Factor1'],
+            response_column='Response'
+        )
+
+        model = analyzer.fit_reduced_quadratic(p_remove=0.05)
+
+        assert model is not None
+        assert hasattr(model, 'rsquared')
+        assert hasattr(model, 'params')
+
+    def test_reduced_quadratic_removes_insignificant(self):
+        """Test that reduced model removes insignificant terms"""
+        # Create data where one factor is noise
+        np.random.seed(42)
+        data = pd.DataFrame({
+            'Signal': [1, 2, 3, 4, 5, 6, 7, 8],
+            'Noise': np.random.normal(5, 0.01, 8),  # No relationship!
+            'Response': [1, 4, 9, 16, 25, 36, 49, 64]  # Related to Signal^2
+        })
+
+        analyzer = DoEAnalyzer()
+        analyzer.set_data(
+            data=data,
+            factor_columns=['Signal', 'Noise'],
+            categorical_factors=[],
+            numeric_factors=['Signal', 'Noise'],
+            response_column='Response'
+        )
+
+        # Reduced model should drop the Noise factor
+        model = analyzer.fit_reduced_quadratic(p_remove=0.05)
+
+        # Model should have fewer parameters than full quadratic
+        assert model.df_model < 6  # Full would be: intercept + 2 main + 2 squared + 1 interaction = 5
+        assert model.rsquared > 0.95  # Should be very good fit
