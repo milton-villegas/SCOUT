@@ -10,7 +10,8 @@ import numpy as np
 np.random.seed(42)
 
 # Define factor levels (factorial design)
-buffer_ph_levels = [6.0, 7.0, 8.0, 9.0]
+# Use pH values that match BO's expected categorical values
+buffer_ph_levels = [6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5]
 buffer_conc_levels = [10, 50, 100]  # mM
 nacl_levels = [0, 50, 150, 300]  # mM
 zinc_levels = [0, 0.1, 1.0]  # mM
