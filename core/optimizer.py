@@ -327,15 +327,21 @@ class BayesianOptimizer:
         Returns:
             matplotlib Figure or None
         """
+        print("DEBUG: plot_pareto_frontier() called")
         if not self.is_multi_objective:
+            print("DEBUG: Not multi-objective, returning None")
             return None
 
+        print("DEBUG: Getting Pareto frontier points")
         pareto_points = self.get_pareto_frontier()
+        print(f"DEBUG: Got {len(pareto_points) if pareto_points else 0} Pareto points")
+
         if pareto_points is None or len(pareto_points) == 0:
             print("⚠️  No Pareto frontier points available")
             return None
 
         n_objectives = len(self.response_columns)
+        print(f"DEBUG: n_objectives = {n_objectives}")
 
         if n_objectives == 2:
             # 2D scatter plot
