@@ -16,7 +16,8 @@ class DataHandler:
         self.factor_columns = []
         self.categorical_factors = []
         self.numeric_factors = []
-        self.response_column = None
+        self.response_column = None  # Kept for backward compatibility
+        self.response_columns = []  # New: support multiple responses
         self.stock_concentrations = {}  # Store stock concentrations from metadata
 
     def load_excel(self, filepath: str):
@@ -61,17 +62,44 @@ class DataHandler:
         """Get stock concentrations (either from metadata or empty dict)"""
         return self.stock_concentrations.copy()
 
-    def detect_columns(self, response_column: str):
-        """Detect factor types, exclude metadata"""
+    def get_potential_response_columns(self):
+        """Get list of numeric columns that could be responses (excluding metadata)"""
+        if self.data is None:
+            return []
+
+        potential_responses = []
+        for col in self.data.columns:
+            if col not in METADATA_COLUMNS:
+                # Check if column is numeric
+                if pd.api.types.is_numeric_dtype(self.data[col]):
+                    potential_responses.append(col)
+
+        return potential_responses
+
+    def detect_columns(self, response_column=None, response_columns=None):
+        """Detect factor types, exclude metadata
+
+        Args:
+            response_column: Single response (backward compatibility)
+            response_columns: List of response columns (new multi-response support)
+        """
         if self.data is None:
             raise ValueError("No data loaded")
 
-        self.response_column = response_column
+        # Support both old (single) and new (multiple) response specification
+        if response_columns is not None:
+            self.response_columns = response_columns if isinstance(response_columns, list) else [response_columns]
+            self.response_column = self.response_columns[0] if self.response_columns else None
+        elif response_column is not None:
+            self.response_column = response_column
+            self.response_columns = [response_column]
+        else:
+            raise ValueError("Must specify either response_column or response_columns")
 
-        # All columns except response and metadata are factors
+        # All columns except responses and metadata are factors
         self.factor_columns = [
             col for col in self.data.columns
-            if col != response_column and col not in METADATA_COLUMNS
+            if col not in self.response_columns and col not in METADATA_COLUMNS
         ]
 
         # Detect categorical vs numeric factors
@@ -97,8 +125,9 @@ class DataHandler:
         if columns_to_drop:
             self.clean_data = self.clean_data.drop(columns=columns_to_drop)
 
-        # Drop rows with missing response
-        self.clean_data = self.clean_data.dropna(subset=[self.response_column])
+        # Drop rows with missing values in ANY response column
+        if self.response_columns:
+            self.clean_data = self.clean_data.dropna(subset=self.response_columns)
 
         # Handle categorical variables - fill NaN with 'None'
         for col in self.categorical_factors:
