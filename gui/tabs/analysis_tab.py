@@ -87,6 +87,11 @@ class AnalysisTab(ttk.Frame):
         self.results = None
         self.main_effects = None
 
+        # Response selection tracking
+        self.response_checkboxes = {}  # {column_name: (var, direction_var)}
+        self.selected_responses = []  # List of selected response column names
+        self.response_directions = {}  # {column_name: 'maximize' or 'minimize'}
+
         # Setup GUI
         self.setup_gui()
         
@@ -106,9 +111,17 @@ class AnalysisTab(ttk.Frame):
         
         browse_btn = ttk.Button(file_frame, text="Browse...", command=self.browse_file)
         browse_btn.pack(side='right', padx=5)
-        
+
+        # Response selection
+        self.response_frame = ttk.LabelFrame(self, text="2. Select Response Variables", padding=10)
+        self.response_frame.pack(fill='x', padx=10, pady=5)
+
+        self.response_label = ttk.Label(self.response_frame,
+                                       text="Load a file to see available response columns")
+        self.response_label.pack(padx=5, pady=5)
+
         # Configuration
-        config_frame = ttk.LabelFrame(self, text="2. Configure Analysis", padding=10)
+        config_frame = ttk.LabelFrame(self, text="3. Configure Analysis", padding=10)
         config_frame.pack(fill='x', padx=10, pady=5)
         
         # Model Type row with info button
@@ -143,7 +156,7 @@ class AnalysisTab(ttk.Frame):
         status_bar.pack(fill='x', side='bottom')
         
         # Export buttons
-        export_frame = ttk.LabelFrame(self, text="4. Export Results", padding=10)
+        export_frame = ttk.LabelFrame(self, text="5. Export Results", padding=10)
         export_frame.pack(fill='x', side='bottom', padx=10, pady=5)
         
         self.export_stats_btn = ttk.Button(export_frame, text="Export Statistics (.xlxs)",
@@ -155,7 +168,7 @@ class AnalysisTab(ttk.Frame):
         self.export_plots_btn.pack(side='left', padx=5)
         
         # Results notebook
-        results_frame = ttk.LabelFrame(self, text="3. Results", padding=5)
+        results_frame = ttk.LabelFrame(self, text="4. Results", padding=5)
         results_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
         # It was needed to create a canvas with scrollbar for results to prevent expanding too much
@@ -430,40 +443,123 @@ class AnalysisTab(ttk.Frame):
             
             try:
                 self.handler.load_excel(filepath)
-                
-                # Check if "Response" column exists
-                if 'Response' not in self.handler.data.columns:
-                    messagebox.showerror("Missing Response Column",
-                                       "Excel file must have a column named 'Response'\n\n"
-                                       "Please rename your response column to 'Response' and try again.")
-                    self.status_var.set("Error: No 'Response' column found")
+
+                # Get potential response columns (numeric columns excluding metadata)
+                potential_responses = self.handler.get_potential_response_columns()
+
+                if not potential_responses:
+                    messagebox.showerror("No Response Columns Found",
+                                       "Excel file must have at least one numeric column\n"
+                                       "that can be used as a response variable.\n\n"
+                                       "Numeric columns are needed for optimization.")
+                    self.status_var.set("Error: No numeric columns found")
                     return
-                
-                # Enable analyze button
-                self.analyze_btn.config(state='normal')
-                
+
+                # Populate response selection UI
+                self._populate_response_selection(potential_responses)
+
+                self.status_var.set(f"Loaded: {len(potential_responses)} potential response(s) found")
+
             except Exception as e:
                 messagebox.showerror("File Load Failed",
                     f"Could not open the selected Excel file.\n\n"
                     f"Details: {str(e)}\n\n"
                     f"Make sure the file is not open in another program.")
                 self.status_var.set("Error loading file")
-    
+
+    def _populate_response_selection(self, potential_responses):
+        """Create checkboxes for response selection with maximize/minimize options"""
+        # Clear existing widgets in response frame
+        for widget in self.response_frame.winfo_children():
+            widget.destroy()
+
+        # Reset tracking
+        self.response_checkboxes = {}
+        self.selected_responses = []
+        self.response_directions = {}
+
+        # Header
+        header_label = ttk.Label(self.response_frame,
+                                text="Select response variable(s) to optimize:",
+                                font=('TkDefaultFont', 9, 'bold'))
+        header_label.grid(row=0, column=0, columnspan=3, sticky='w', padx=5, pady=5)
+
+        # Create checkbox for each potential response
+        for idx, col_name in enumerate(potential_responses):
+            # Checkbox
+            var = tk.BooleanVar(value=False)
+
+            # Auto-select if column name contains "response" (case-insensitive)
+            if 'response' in col_name.lower():
+                var.set(True)
+
+            checkbox = ttk.Checkbutton(self.response_frame, text=col_name, variable=var,
+                                      command=self._update_selected_responses)
+            checkbox.grid(row=idx+1, column=0, sticky='w', padx=20, pady=2)
+
+            # Direction dropdown (Maximize/Minimize)
+            direction_var = tk.StringVar(value='Maximize')
+            direction_combo = ttk.Combobox(self.response_frame, textvariable=direction_var,
+                                          values=['Maximize', 'Minimize'],
+                                          state='readonly', width=10)
+            direction_combo.grid(row=idx+1, column=1, padx=10, pady=2)
+
+            # Store references
+            self.response_checkboxes[col_name] = (var, direction_var)
+
+        # Note label
+        note_label = ttk.Label(self.response_frame,
+                              text="Note: At least one response must be selected to proceed",
+                              font=('TkDefaultFont', 8, 'italic'))
+        note_label.grid(row=len(potential_responses)+1, column=0, columnspan=3,
+                       sticky='w', padx=5, pady=5)
+
+        # Initial update
+        self._update_selected_responses()
+
+    def _update_selected_responses(self):
+        """Update selected responses list and enable/disable analyze button"""
+        self.selected_responses = []
+        self.response_directions = {}
+
+        for col_name, (var, direction_var) in self.response_checkboxes.items():
+            if var.get():
+                self.selected_responses.append(col_name)
+                direction = 'minimize' if direction_var.get() == 'Minimize' else 'maximize'
+                self.response_directions[col_name] = direction
+
+        # Enable analyze button only if at least one response selected
+        if self.selected_responses:
+            self.analyze_btn.config(state='normal')
+            self.status_var.set(f"Ready to analyze {len(self.selected_responses)} response(s)")
+        else:
+            self.analyze_btn.config(state='disabled')
+            self.status_var.set("Please select at least one response variable")
+
     def analyze_data(self):
         """Perform DoE analysis"""
         if not self.filepath:
             messagebox.showwarning("Warning", "Please select a data file first.")
             return
-        
+
+        if not self.selected_responses:
+            messagebox.showwarning("Warning", "Please select at least one response variable.")
+            return
+
         self.status_var.set("Analyzing...")
         self.update()
-        
+
         try:
-            # Always use "Response" column in the xlxs file
-            response_col = "Response"
+            # Use selected response columns (for Phase 1, analyze first response only)
+            # TODO Phase 2: Handle multiple responses with separate models
+            primary_response = self.selected_responses[0]
+
+            if len(self.selected_responses) > 1:
+                self.status_var.set(f"Analyzing primary response: {primary_response} (multi-response coming soon)")
+                self.update()
 
             # Detect which columns are factors vs response
-            self.handler.detect_columns(response_col)
+            self.handler.detect_columns(response_columns=self.selected_responses)
             clean_data = self.handler.preprocess_data()
 
             # Pass cleaned data to analyzer
