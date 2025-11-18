@@ -3,7 +3,7 @@ Data loading and preprocessing
 Extracted from analysis_tab.py
 """
 import pandas as pd
-from utils.constants import METADATA_COLUMNS
+from utils.constants import METADATA_COLUMNS, AVAILABLE_FACTORS
 from utils.sanitization import smart_factor_match
 
 
@@ -16,7 +16,8 @@ class DataHandler:
         self.factor_columns = []
         self.categorical_factors = []
         self.numeric_factors = []
-        self.response_column = None
+        self.response_column = None  # Kept for backward compatibility
+        self.response_columns = []  # New: support multiple responses
         self.stock_concentrations = {}  # Store stock concentrations from metadata
 
     def load_excel(self, filepath: str):
@@ -61,17 +62,82 @@ class DataHandler:
         """Get stock concentrations (either from metadata or empty dict)"""
         return self.stock_concentrations.copy()
 
-    def detect_columns(self, response_column: str):
-        """Detect factor types, exclude metadata"""
+    def get_potential_response_columns(self):
+        """Get list of numeric columns that could be responses (excluding metadata and detected factors)
+
+        Uses heuristics to distinguish factors from responses:
+        - Factors typically have repeating values (designed combinations)
+        - Responses typically have more unique values (measured outcomes)
+        - Factors appear in known factor list (smart default)
+        """
+        if self.data is None:
+            return []
+
+        # Get all numeric columns first
+        all_numeric = []
+        for col in self.data.columns:
+            if col not in METADATA_COLUMNS and pd.api.types.is_numeric_dtype(self.data[col]):
+                all_numeric.append(col)
+
+        if not all_numeric:
+            return []
+
+        # Identify likely factors using multiple heuristics
+        likely_factors = set()
+
+        # Heuristic 1: Check against known factor names (smart default)
+        for col in all_numeric:
+            col_lower = col.lower()
+            col_base = col.split('(')[0].strip().lower() if '(' in col else col_lower
+
+            for internal_name, display_name in AVAILABLE_FACTORS.items():
+                if (col_lower == internal_name.lower() or
+                    col_lower == display_name.lower() or
+                    col_base == display_name.split('(')[0].strip().lower()):
+                    likely_factors.add(col)
+                    break
+
+        # Heuristic 2: Check value patterns (factors have more repeating values)
+        for col in all_numeric:
+            if col not in likely_factors:
+                unique_ratio = len(self.data[col].unique()) / len(self.data[col])
+                # If less than 50% unique values, likely a factor (designed combinations repeat)
+                if unique_ratio < 0.5:
+                    likely_factors.add(col)
+
+        # Return numeric columns that are NOT likely factors
+        potential_responses = [col for col in all_numeric if col not in likely_factors]
+
+        return potential_responses
+
+    def detect_columns(self, response_column=None, response_columns=None):
+        """Detect factor types, exclude metadata
+
+        Args:
+            response_column: Single response (backward compatibility)
+            response_columns: List of response columns (new multi-response support)
+        """
         if self.data is None:
             raise ValueError("No data loaded")
 
-        self.response_column = response_column
+        # Support both old (single) and new (multiple) response specification
+        if response_columns is not None:
+            self.response_columns = response_columns if isinstance(response_columns, list) else [response_columns]
+            self.response_column = self.response_columns[0] if self.response_columns else None
+        elif response_column is not None:
+            self.response_column = response_column
+            self.response_columns = [response_column]
+        else:
+            raise ValueError("Must specify either response_column or response_columns")
 
-        # All columns except response and metadata are factors
+        # Get all potential response columns to exclude from factors
+        # This prevents unselected responses from being treated as factors
+        all_potential_responses = self.get_potential_response_columns()
+
+        # All columns except ALL potential responses and metadata are factors
         self.factor_columns = [
             col for col in self.data.columns
-            if col != response_column and col not in METADATA_COLUMNS
+            if col not in all_potential_responses and col not in METADATA_COLUMNS
         ]
 
         # Detect categorical vs numeric factors
@@ -97,8 +163,9 @@ class DataHandler:
         if columns_to_drop:
             self.clean_data = self.clean_data.drop(columns=columns_to_drop)
 
-        # Drop rows with missing response
-        self.clean_data = self.clean_data.dropna(subset=[self.response_column])
+        # Drop rows with missing values in ANY response column
+        if self.response_columns:
+            self.clean_data = self.clean_data.dropna(subset=self.response_columns)
 
         # Handle categorical variables - fill NaN with 'None'
         for col in self.categorical_factors:
