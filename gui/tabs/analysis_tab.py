@@ -265,12 +265,8 @@ class AnalysisTab(ttk.Frame):
             ttk.Button(opt_header, text="ℹ️", width=3,
                       command=lambda: self.show_tooltip("optimization")).pack(side='right', padx=5)
 
-            export_frame_opt = ttk.LabelFrame(optimization_container, text="Export", padding=10)
-            export_frame_opt.pack(fill='x', padx=10, pady=5)
-
-            self.export_bo_plots_button = ttk.Button(export_frame_opt, text="📊 Export BO Plots",
-                                                     command=self.export_bo_plots_gui, state='disabled')
-            self.export_bo_plots_button.pack(side='left', padx=5)
+            self.export_frame_opt = ttk.LabelFrame(optimization_container, text="Export", padding=10)
+            self.export_frame_opt.pack(fill='x', padx=10, pady=5)
 
             self.optimization_frame = self.create_scrollable_frame(optimization_container)
     
@@ -1283,8 +1279,8 @@ class AnalysisTab(ttk.Frame):
                 # Enable export button after successful BO initialization
                 if hasattr(self, 'export_bo_button'):
                     self.export_bo_button.config(state='normal')
-                if hasattr(self, 'export_bo_plots_button'):
-                    self.export_bo_plots_button.config(state='normal')
+
+                self._create_optimization_export_button()
                 
             except Exception as e:
                 self.recommendations_text.insert(tk.END, 
@@ -1294,11 +1290,34 @@ class AnalysisTab(ttk.Frame):
                 # Disable export button if BO failed
                 if hasattr(self, 'export_bo_button'):
                     self.export_bo_button.config(state='disabled')
-                if hasattr(self, 'export_bo_plots_button'):
-                    self.export_bo_plots_button.config(state='disabled')
             
             self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
-    
+
+    def _create_optimization_export_button(self):
+        """Create appropriate export button based on optimization type"""
+        if not AX_AVAILABLE or not hasattr(self, 'export_frame_opt'):
+            return
+
+        for widget in self.export_frame_opt.winfo_children():
+            widget.destroy()
+
+        if self.optimizer.is_multi_objective:
+            self.export_pareto_button = ttk.Button(
+                self.export_frame_opt,
+                text="📊 Pareto Plots",
+                command=self.export_pareto_plots_gui,
+                state='normal'
+            )
+            self.export_pareto_button.pack(side='left', padx=5)
+        else:
+            self.export_bo_plots_button = ttk.Button(
+                self.export_frame_opt,
+                text="📊 BO Plots",
+                command=self.export_bo_plots_gui,
+                state='normal'
+            )
+            self.export_bo_plots_button.pack(side='left', padx=5)
+
     def display_optimization_plot(self):
         """Display Bayesian Optimization predicted response surface or Pareto frontier"""
         if not AX_AVAILABLE or not self.optimizer:
@@ -1856,6 +1875,69 @@ class AnalysisTab(ttk.Frame):
                 f"Error: {str(e)}\n\n"
                 f"Check that you have write permissions for the selected location.")
 
+    def export_pareto_plots_gui(self):
+        """GUI wrapper for exporting Pareto frontier plots"""
+        if not AX_AVAILABLE or not self.optimizer or not self.optimizer.is_initialized:
+            messagebox.showerror("Bayesian Optimization Unavailable",
+                "Bayesian Optimization is not available or not initialized.\n\n"
+                "Make sure you have installed ax-platform:\n"
+                "pip install ax-platform\n\n"
+                "Then run the analysis to initialize the optimizer.")
+            return
+
+        if not self.optimizer.is_multi_objective:
+            messagebox.showwarning("Not Multi-Objective",
+                "Pareto plots are only available for multi-objective optimization.\n\n"
+                "This analysis has only one response variable.")
+            return
+
+        format_options = self._ask_plot_format()
+        if not format_options['format']:
+            return
+
+        file_format = format_options['format']
+        dpi = format_options['dpi']
+
+        format_map = {
+            'png': ("PNG files", "*.png"),
+            'tiff': ("TIFF files", "*.tiff"),
+            'pdf': ("PDF files", "*.pdf"),
+            'eps': ("EPS files", "*.eps")
+        }
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=f".{file_format}",
+            filetypes=[format_map[file_format], ("All files", "*.*")],
+            initialfile=f"ParetoFrontier.{file_format}",
+            title="Save Pareto Frontier Plot"
+        )
+
+        if not filepath:
+            return
+
+        try:
+            fig = self.optimizer.plot_pareto_frontier()
+
+            if fig is None:
+                messagebox.showwarning("Export Failed",
+                    "Could not generate Pareto frontier plot.\n\n"
+                    "Pareto visualization requires 2-3 objectives.")
+                return
+
+            fig.savefig(filepath, dpi=dpi, bbox_inches='tight')
+            plt.close(fig)
+
+            messagebox.showinfo("Export Complete",
+                f"Pareto frontier plot saved:\n\n"
+                f"{os.path.basename(filepath)}\n\n"
+                f"Location:\n"
+                f"{os.path.dirname(filepath)}")
+
+        except Exception as e:
+            messagebox.showerror("Export Failed",
+                f"Could not export Pareto plot to file.\n\n"
+                f"Error: {str(e)}\n\n"
+                f"Check that you have write permissions for the selected location.")
 
     def load_results(self):
         """Load results from Excel (called from main window menu)"""
