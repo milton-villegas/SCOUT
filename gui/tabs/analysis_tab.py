@@ -194,7 +194,7 @@ class AnalysisTab(ttk.Frame):
         me_header = ttk.Frame(main_effects_container)
         me_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(me_header, text="Main Effects Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
-        ttk.Button(me_header, text="ℹ️ How to Read", width=15,
+        ttk.Button(me_header, text="ℹ️", width=3,
                   command=lambda: self.show_tooltip("main_effects")).pack(side='right', padx=5)
 
         self.main_effects_frame = self.create_scrollable_frame(main_effects_container)
@@ -206,7 +206,7 @@ class AnalysisTab(ttk.Frame):
         int_header = ttk.Frame(interactions_container)
         int_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(int_header, text="Interaction Effects Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
-        ttk.Button(int_header, text="ℹ️ How to Read", width=15,
+        ttk.Button(int_header, text="ℹ️", width=3,
                   command=lambda: self.show_tooltip("interactions")).pack(side='right', padx=5)
 
         self.interactions_frame = self.create_scrollable_frame(interactions_container)
@@ -218,7 +218,7 @@ class AnalysisTab(ttk.Frame):
         res_header = ttk.Frame(residuals_container)
         res_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(res_header, text="Residuals Diagnostic Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
-        ttk.Button(res_header, text="ℹ️ How to Read", width=15,
+        ttk.Button(res_header, text="ℹ️", width=3,
                   command=lambda: self.show_tooltip("residuals")).pack(side='right', padx=5)
 
         self.residuals_frame = self.create_scrollable_frame(residuals_container)
@@ -247,15 +247,18 @@ class AnalysisTab(ttk.Frame):
             optimization_container = ttk.Frame(self.notebook)
             self.notebook.add(optimization_container, text="Optimization Details")
 
+            opt_header = ttk.Frame(optimization_container)
+            opt_header.pack(fill='x', padx=5, pady=2)
+            ttk.Label(opt_header, text="Bayesian Optimization Analysis", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
+            ttk.Button(opt_header, text="ℹ️", width=3,
+                      command=lambda: self.show_tooltip("optimization")).pack(side='right', padx=5)
+
             export_frame_opt = ttk.LabelFrame(optimization_container, text="Export", padding=10)
             export_frame_opt.pack(fill='x', padx=10, pady=5)
 
             self.export_bo_plots_button = ttk.Button(export_frame_opt, text="📊 Export BO Plots",
                                                      command=self.export_bo_plots_gui, state='disabled')
             self.export_bo_plots_button.pack(side='left', padx=5)
-
-            ttk.Button(export_frame_opt, text="ℹ️ How to Read", width=15,
-                      command=lambda: self.show_tooltip("optimization")).pack(side='left', padx=5)
 
             self.optimization_frame = self.create_scrollable_frame(optimization_container)
     
