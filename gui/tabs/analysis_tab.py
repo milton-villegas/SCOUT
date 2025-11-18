@@ -499,12 +499,17 @@ class AnalysisTab(ttk.Frame):
         self.response_checkboxes = {}
         self.selected_responses = []
         self.response_directions = {}
+        self.response_constraints = {}
 
         # Header
         header_label = ttk.Label(self.response_frame,
                                 text="Select response variable(s) to optimize:",
                                 font=('TkDefaultFont', 9, 'bold'))
-        header_label.grid(row=0, column=0, columnspan=3, sticky='w', padx=5, pady=5)
+        header_label.grid(row=0, column=0, columnspan=5, sticky='w', padx=5, pady=5)
+
+        # Column headers
+        ttk.Label(self.response_frame, text="Constraint Min", font=('TkDefaultFont', 8)).grid(row=0, column=2, padx=5)
+        ttk.Label(self.response_frame, text="Constraint Max", font=('TkDefaultFont', 8)).grid(row=0, column=3, padx=5)
 
         # Create checkbox for each potential response
         for idx, col_name in enumerate(potential_responses):
@@ -526,14 +531,24 @@ class AnalysisTab(ttk.Frame):
                                           state='readonly', width=10)
             direction_combo.grid(row=idx+1, column=1, padx=10, pady=2)
 
+            # Min constraint entry
+            min_var = tk.StringVar(value='')
+            min_entry = ttk.Entry(self.response_frame, textvariable=min_var, width=10)
+            min_entry.grid(row=idx+1, column=2, padx=5, pady=2)
+
+            # Max constraint entry
+            max_var = tk.StringVar(value='')
+            max_entry = ttk.Entry(self.response_frame, textvariable=max_var, width=10)
+            max_entry.grid(row=idx+1, column=3, padx=5, pady=2)
+
             # Store references
-            self.response_checkboxes[col_name] = (var, direction_var)
+            self.response_checkboxes[col_name] = (var, direction_var, min_var, max_var)
 
         # Note label
         note_label = ttk.Label(self.response_frame,
-                              text="Note: At least one response must be selected to proceed",
+                              text="Note: Constraints are optional. Leave blank for no constraint.",
                               font=('TkDefaultFont', 8, 'italic'))
-        note_label.grid(row=len(potential_responses)+1, column=0, columnspan=3,
+        note_label.grid(row=len(potential_responses)+1, column=0, columnspan=5,
                        sticky='w', padx=5, pady=5)
 
         # Initial update
@@ -543,12 +558,31 @@ class AnalysisTab(ttk.Frame):
         """Update selected responses list and enable/disable analyze button"""
         self.selected_responses = []
         self.response_directions = {}
+        self.response_constraints = {}
 
-        for col_name, (var, direction_var) in self.response_checkboxes.items():
+        for col_name, (var, direction_var, min_var, max_var) in self.response_checkboxes.items():
             if var.get():
                 self.selected_responses.append(col_name)
                 direction = 'minimize' if direction_var.get() == 'Minimize' else 'maximize'
                 self.response_directions[col_name] = direction
+
+                min_val = min_var.get().strip()
+                max_val = max_var.get().strip()
+
+                constraint = {}
+                if min_val:
+                    try:
+                        constraint['min'] = float(min_val)
+                    except ValueError:
+                        pass
+                if max_val:
+                    try:
+                        constraint['max'] = float(max_val)
+                    except ValueError:
+                        pass
+
+                if constraint:
+                    self.response_constraints[col_name] = constraint
 
         if self.selected_responses:
             self.analyze_btn.config(state='normal')
@@ -1223,10 +1257,11 @@ class AnalysisTab(ttk.Frame):
                     factor_columns=self.handler.factor_columns,
                     categorical_factors=self.handler.categorical_factors,
                     numeric_factors=self.handler.numeric_factors,
-                    response_columns=self.selected_responses,  # Pass all selected responses
-                    response_directions=self.response_directions  # Pass optimization directions
+                    response_columns=self.selected_responses,
+                    response_directions=self.response_directions,
+                    response_constraints=self.response_constraints
                 )
-                self.optimizer.initialize_optimizer()  # Uses response_directions internally
+                self.optimizer.initialize_optimizer()
                 
                 # Get suggestions
                 suggestions = self.optimizer.get_next_suggestions(n=5)

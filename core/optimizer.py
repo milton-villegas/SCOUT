@@ -14,6 +14,8 @@ from datetime import datetime
 # Check if Ax is available
 try:
     from ax.service.ax_client import AxClient, ObjectiveProperties
+    from ax.core.outcome_constraint import OutcomeConstraint
+    from ax.core.types import ComparisonOp
     AX_AVAILABLE = True
 except ImportError:
     AX_AVAILABLE = False
@@ -38,6 +40,7 @@ class BayesianOptimizer:
         self.response_column = None  # Backward compatibility (primary response)
         self.response_columns = []  # Multi-response support
         self.response_directions = {}  # {response_name: 'maximize' or 'minimize'}
+        self.response_constraints = {}  # {response_name: {'min': val, 'max': val}}
         self.factor_bounds = {}
         self.is_initialized = False
         self.is_multi_objective = False  # Track if using multi-objective optimization
@@ -50,13 +53,15 @@ class BayesianOptimizer:
         return sanitized
     
     def set_data(self, data, factor_columns, categorical_factors, numeric_factors,
-                 response_column=None, response_columns=None, response_directions=None):
+                 response_column=None, response_columns=None, response_directions=None,
+                 response_constraints=None):
         """Set data and factor information
 
         Args:
             response_column: Single response (backward compatibility)
             response_columns: List of response columns (multi-objective)
             response_directions: Dict of {response_name: 'maximize' or 'minimize'}
+            response_constraints: Dict of {response_name: {'min': val, 'max': val}}
         """
         self.data = data.copy()
         self.factor_columns = factor_columns
@@ -79,6 +84,9 @@ class BayesianOptimizer:
         for resp in self.response_columns:
             if resp not in self.response_directions:
                 self.response_directions[resp] = 'maximize'
+
+        # Store response constraints
+        self.response_constraints = response_constraints or {}
 
         # Multi-objective if more than one response
         self.is_multi_objective = len(self.response_columns) > 1
@@ -167,13 +175,42 @@ class BayesianOptimizer:
             # Single-objective (backward compatible)
             objectives[self.response_column] = ObjectiveProperties(minimize=minimize)
 
+        # Build outcome constraints from response_constraints
+        outcome_constraints = []
+        if self.response_constraints:
+            print(f"ℹ️  Applying response constraints:")
+            for response, constraint in self.response_constraints.items():
+                if 'min' in constraint:
+                    min_val = constraint['min']
+                    outcome_constraints.append(
+                        OutcomeConstraint(
+                            metric_name=response,
+                            op=ComparisonOp.GEQ,
+                            bound=min_val,
+                            relative=False
+                        )
+                    )
+                    print(f"     {response} ≥ {min_val}")
+                if 'max' in constraint:
+                    max_val = constraint['max']
+                    outcome_constraints.append(
+                        OutcomeConstraint(
+                            metric_name=response,
+                            op=ComparisonOp.LEQ,
+                            bound=max_val,
+                            relative=False
+                        )
+                    )
+                    print(f"     {response} ≤ {max_val}")
+
         # Create Ax client
         self.ax_client = AxClient()
         self.ax_client.create_experiment(
             name="doe_optimization",
             parameters=parameters,
             objectives=objectives,
-            choose_generation_strategy_kwargs={"num_initialization_trials": 0}  # Skip Sobol, go straight to BO
+            outcome_constraints=outcome_constraints if outcome_constraints else None,
+            choose_generation_strategy_kwargs={"num_initialization_trials": 0}
         )
         
         # Add existing data as completed trials using sanitized names
