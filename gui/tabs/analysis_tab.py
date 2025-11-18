@@ -1358,6 +1358,9 @@ class AnalysisTab(ttk.Frame):
 
                 # Add Pareto frontier analysis for multi-objective
                 if self.optimizer.is_multi_objective:
+                    print(f"\n[DEBUG DISPLAY] Displaying Pareto frontier...")
+                    print(f"  response_directions at display time: {self.response_directions}")
+
                     pareto_points = self.optimizer.get_pareto_frontier()
                     if pareto_points and len(pareto_points) > 0:
                         self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
@@ -1381,6 +1384,12 @@ class AnalysisTab(ttk.Frame):
                                 header += f" (ID: {point['id']})"
                             self.recommendations_text.insert(tk.END, header + "\n")
 
+                            if i == 1:  # Debug first point
+                                print(f"\n[DEBUG DISPLAY] First Pareto point:")
+                                print(f"  ID: {point.get('id')}")
+                                print(f"  Objectives: {point['objectives']}")
+                                print(f"  Checking directions for each objective:")
+
                             # Display experimental conditions
                             if point.get('parameters'):
                                 self.recommendations_text.insert(tk.END, "  Experimental Conditions:\n")
@@ -1394,6 +1403,8 @@ class AnalysisTab(ttk.Frame):
                             self.recommendations_text.insert(tk.END, "  Results:\n")
                             for resp, value in point['objectives'].items():
                                 direction = self.response_directions.get(resp, 'maximize')
+                                if i == 1:  # Debug first point
+                                    print(f"    {resp}: direction={direction}")
                                 arrow = '↑' if direction == 'maximize' else '↓'
                                 direction_text = '(maximize)' if direction == 'maximize' else '(minimize)'
                                 self.recommendations_text.insert(tk.END, f"    {arrow} {resp:<25}: {value:.4f} {direction_text}\n")

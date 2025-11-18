@@ -179,22 +179,27 @@ class BayesianOptimizer:
         objectives = {}
         if self.is_multi_objective:
             # Multi-objective optimization
-            print(f"ℹ️  Initializing multi-objective Bayesian Optimization")
-            print(f"   Optimizing {len(self.response_columns)} objectives:")
+            print(f"\n[DEBUG INIT] Initializing multi-objective Bayesian Optimization")
+            print(f"  Optimizing {len(self.response_columns)} objectives:")
             for response in self.response_columns:
                 direction = self.response_directions[response]
                 minimize_this = (direction == 'minimize')
                 objectives[response] = ObjectiveProperties(minimize=minimize_this)
                 arrow = '↓' if minimize_this else '↑'
-                print(f"     {arrow} {response}: {direction}")
+                print(f"    {arrow} {response}: {direction} (Ax minimize={minimize_this})")
         else:
             # Single-objective (backward compatible)
+            direction = self.response_directions.get(self.response_column, 'maximize')
+            minimize = (direction == 'minimize')
             objectives[self.response_column] = ObjectiveProperties(minimize=minimize)
+            print(f"\n[DEBUG INIT] Single-objective optimization:")
+            arrow = '↓' if minimize else '↑'
+            print(f"  {arrow} {self.response_column}: {direction} (Ax minimize={minimize})")
 
         # Build outcome constraints from response_constraints
         outcome_constraints = []
         if self.response_constraints and not self.exploration_mode:
-            print(f"ℹ️  Applying response constraints:")
+            print(f"\n[DEBUG INIT] Applying response constraints:")
             for response, constraint in self.response_constraints.items():
                 if 'min' in constraint:
                     min_val = constraint['min']
@@ -206,7 +211,7 @@ class BayesianOptimizer:
                             relative=False
                         )
                     )
-                    print(f"     {response} ≥ {min_val}")
+                    print(f"  {response} ≥ {min_val}")
                 if 'max' in constraint:
                     max_val = constraint['max']
                     outcome_constraints.append(
@@ -217,9 +222,10 @@ class BayesianOptimizer:
                             relative=False
                         )
                     )
-                    print(f"     {response} ≤ {max_val}")
+                    print(f"  {response} ≤ {max_val}")
+            print(f"  Total constraints added to Ax: {len(outcome_constraints)}")
         elif self.response_constraints and self.exploration_mode:
-            print(f"ℹ️  Exploration mode enabled - constraints will be tracked but not enforced:")
+            print(f"\n[DEBUG INIT] Exploration mode enabled - constraints tracked but NOT enforced:")
             for response, constraint in self.response_constraints.items():
                 parts = []
                 if 'min' in constraint:
@@ -227,7 +233,9 @@ class BayesianOptimizer:
                 if 'max' in constraint:
                     parts.append(f"{response} ≤ {constraint['max']}")
                 if parts:
-                    print(f"     {' and '.join(parts)} (guidance only)")
+                    print(f"  {' and '.join(parts)} (guidance only)")
+        else:
+            print(f"\n[DEBUG INIT] No constraints applied")
 
         # Create Ax client
         self.ax_client = AxClient()
@@ -240,6 +248,7 @@ class BayesianOptimizer:
         )
         
         # Add existing data as completed trials using sanitized names
+        print(f"\n[DEBUG INIT] Adding {len(self.data)} existing trials to Ax...")
         for idx, row in self.data.iterrows():
             params = {}
             for factor in self.factor_columns:
@@ -254,17 +263,21 @@ class BayesianOptimizer:
                         params[sanitized_name] = float(val)
                 else:
                     params[sanitized_name] = str(val)
-            
+
             # Add trial
             _, trial_index = self.ax_client.attach_trial(parameters=params)
 
             # Store metadata for this trial
+            exp_id = row.get('ID', None) if 'ID' in row.index else None
             metadata = {
                 'row_index': idx,
-                'id': row.get('ID', None) if 'ID' in row.index else None,
+                'id': exp_id,
                 'parameters': {factor: row[factor] for factor in self.factor_columns}
             }
             self.trial_metadata[trial_index] = metadata
+
+            if idx < 3:  # Show first 3 for debugging
+                print(f"  Trial {trial_index}: ID={exp_id}, row_index={idx}")
 
             # Build raw_data dict for all responses
             if self.is_multi_objective:
@@ -278,7 +291,8 @@ class BayesianOptimizer:
             )
 
         self.is_initialized = True
-        print(f"✓ Initialized BO with {len(self.data)} existing trials")
+        print(f"[DEBUG INIT] ✓ Initialized BO with {len(self.data)} trials")
+        print(f"  Stored metadata for {len(self.trial_metadata)} trials")
 
     def check_constraint_violations(self, predicted_values):
         """Check if predicted response values violate constraints
@@ -300,9 +314,11 @@ class BayesianOptimizer:
             value = predicted_values[response]
 
             if 'min' in constraint and value < constraint['min']:
-                violations.append(f"{response} = {value:.2f} < {constraint['min']} (min)")
+                msg = f"{response} = {value:.2f} < {constraint['min']} (min)"
+                violations.append(msg)
             if 'max' in constraint and value > constraint['max']:
-                violations.append(f"{response} = {value:.2f} > {constraint['max']} (max)")
+                msg = f"{response} = {value:.2f} > {constraint['max']} (max)"
+                violations.append(msg)
 
         return violations
 
@@ -353,12 +369,14 @@ class BayesianOptimizer:
             return None  # No Pareto frontier for single-objective
 
         try:
+            print(f"\n[DEBUG PARETO] Getting Pareto frontier...")
             # Get Pareto frontier from Ax
             pareto_frontier = self.ax_client.get_pareto_optimal_parameters()
+            print(f"  Ax returned {len(pareto_frontier)} Pareto-optimal trials")
 
             # Convert to more usable format
             pareto_points = []
-            for arm_name, (params, values) in pareto_frontier.items():
+            for i, (arm_name, (params, values)) in enumerate(pareto_frontier.items(), 1):
                 # Extract trial index from arm_name (format is typically "trial_index_arm_index")
                 trial_index = int(arm_name.split('_')[0])
 
@@ -370,6 +388,7 @@ class BayesianOptimizer:
 
                 # If metadata not found, fall back to converting sanitized names
                 if not original_params:
+                    print(f"  ⚠️  Pareto point {i}: No metadata found for trial {trial_index}, using fallback")
                     original_params = {}
                     for sanitized_name, value in params.items():
                         if sanitized_name in self.name_mapping:
@@ -379,13 +398,19 @@ class BayesianOptimizer:
                 # Extract mean values from tuple: values = (mean_dict, cov_dict)
                 mean_dict = values[0] if isinstance(values, tuple) else values
 
+                exp_id = metadata.get('id')
+                if i <= 3:  # Show first 3 for debugging
+                    print(f"  Pareto point {i}: Trial {trial_index}, ID={exp_id}")
+                    print(f"    Objectives: {mean_dict}")
+
                 pareto_points.append({
                     'parameters': original_params,
                     'objectives': mean_dict,
-                    'id': metadata.get('id'),
+                    'id': exp_id,
                     'row_index': metadata.get('row_index')
                 })
 
+            print(f"[DEBUG PARETO] ✓ Extracted {len(pareto_points)} Pareto points with metadata")
             return pareto_points
 
         except Exception as e:
