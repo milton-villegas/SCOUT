@@ -3,7 +3,7 @@
 DoE Data Analysis Tool - v0.4.1
 Statistical analysis GUI for Design of Experiments data
 Replicates MATLAB fitlm (EDA CAPKIN MATLAB code), main effects, and interaction plots
-Includes Bayesian Optimization for intelligent experiment suggestions
+Includes Bayesian Optimization for experiment suggestions
 
 v0.4.1 Changes:
 - Fixed pH handling in Bayesian Optimization
@@ -28,6 +28,161 @@ import numpy as np
 
 # Statistical analysis imports
 import statsmodels.formula.api as smf
+
+
+# ============================================================================
+# COMPREHENSIVE CONSTRAINT VALIDATION FUNCTIONS
+# Based on best practices from DOE software (Minitab, JMP, Design-Expert)
+# ============================================================================
+
+def validate_constraint(response_name, direction, constraint, data_min, data_max, total_experiments):
+    """
+    Comprehensive constraint validation with severity levels: error, warning, info
+
+    Returns list of dicts with: severity, category, message, should_stop, experiments_meeting
+    """
+    results = []
+
+    # Check MIN constraint
+    if 'min' in constraint:
+        min_val = constraint['min']
+        result = _validate_min_constraint(response_name, direction, min_val, data_min, data_max, total_experiments)
+        if result:
+            results.append(result)
+
+    # Check MAX constraint
+    if 'max' in constraint:
+        max_val = constraint['max']
+        result = _validate_max_constraint(response_name, direction, max_val, data_min, data_max, total_experiments)
+        if result:
+            results.append(result)
+
+    # Check for invalid range (Min > Max)
+    if 'min' in constraint and 'max' in constraint:
+        if constraint['min'] > constraint['max']:
+            results.append({
+                'severity': 'error',
+                'category': 'invalid_range',
+                'message': f"{response_name}: Min ({constraint['min']}) > Max ({constraint['max']}) - Invalid constraint range",
+                'should_stop': True,
+                'experiments_meeting': 0
+            })
+
+    return results
+
+
+def _validate_min_constraint(response_name, direction, min_val, data_min, data_max, total_experiments):
+    """Validate MIN constraint"""
+    # Case 1: Min below all data (useless)
+    if min_val < data_min:
+        return {
+            'severity': 'warning',
+            'category': 'useless_min',
+            'message': f"{response_name} Min={min_val:.2f} has no effect (all data is already >= {data_min:.2f})",
+            'detail': f"Your data range is {data_min:.2f} to {data_max:.2f}. All {total_experiments} experiments already meet this Min constraint.",
+            'should_stop': False,
+            'experiments_meeting': total_experiments
+        }
+
+    # Case 2: Min within data range
+    elif data_min <= min_val <= data_max:
+        range_covered = (data_max - min_val) / (data_max - data_min)
+        experiments_meeting = max(1, int(total_experiments * range_covered))
+
+        if experiments_meeting < total_experiments * 0.2:
+            return {
+                'severity': 'info',
+                'category': 'restrictive_min',
+                'message': f"{response_name} Min={min_val:.2f} is restrictive (~{experiments_meeting}/{total_experiments} experiments meet it)",
+                'should_stop': False,
+                'experiments_meeting': experiments_meeting
+            }
+        else:
+            return {
+                'severity': 'info',
+                'category': 'valid_min',
+                'message': f"{response_name} Min={min_val:.2f} is valid (~{experiments_meeting}/{total_experiments} experiments meet it)",
+                'should_stop': False,
+                'experiments_meeting': experiments_meeting
+            }
+
+    # Case 3: Min above all data
+    else:
+        if direction == 'minimize':
+            return {
+                'severity': 'error',
+                'category': 'contradiction',
+                'message': f"{response_name}: CONTRADICTION - MINIMIZE with Min={min_val:.2f} above all data ({data_max:.2f})",
+                'detail': f"You want to MINIMIZE (get lowest value) but require Min >= {min_val:.2f}, which is higher than your best data ({data_max:.2f}). This is impossible!",
+                'should_stop': True,
+                'experiments_meeting': 0
+            }
+        else:
+            return {
+                'severity': 'warning',
+                'category': 'no_data_min',
+                'message': f"{response_name} Min={min_val:.2f} is above all data ({data_max:.2f}) - will be ignored",
+                'detail': f"No experiments meet this constraint. Analysis will proceed without it.",
+                'should_stop': False,
+                'experiments_meeting': 0
+            }
+
+
+def _validate_max_constraint(response_name, direction, max_val, data_min, data_max, total_experiments):
+    """Validate MAX constraint"""
+    # Case 1: Max below all data
+    if max_val < data_min:
+        if direction == 'maximize':
+            return {
+                'severity': 'error',
+                'category': 'contradiction',
+                'message': f"{response_name}: CONTRADICTION - MAXIMIZE with Max={max_val:.2f} below all data ({data_min:.2f})",
+                'detail': f"You want to MAXIMIZE (get highest value) but require Max <= {max_val:.2f}, which is lower than your worst data ({data_min:.2f}). This is impossible!",
+                'should_stop': True,
+                'experiments_meeting': 0
+            }
+        else:
+            return {
+                'severity': 'warning',
+                'category': 'no_data_max',
+                'message': f"{response_name} Max={max_val:.2f} is below all data ({data_min:.2f}) - will be ignored",
+                'detail': f"No experiments meet this constraint. Analysis will proceed without it.",
+                'should_stop': False,
+                'experiments_meeting': 0
+            }
+
+    # Case 2: Max within data range
+    elif data_min <= max_val <= data_max:
+        range_covered = (max_val - data_min) / (data_max - data_min)
+        experiments_meeting = max(1, int(total_experiments * range_covered))
+
+        if experiments_meeting < total_experiments * 0.2:
+            return {
+                'severity': 'info',
+                'category': 'restrictive_max',
+                'message': f"{response_name} Max={max_val:.2f} is restrictive (~{experiments_meeting}/{total_experiments} experiments meet it)",
+                'should_stop': False,
+                'experiments_meeting': experiments_meeting
+            }
+        else:
+            return {
+                'severity': 'info',
+                'category': 'valid_max',
+                'message': f"{response_name} Max={max_val:.2f} is valid (~{experiments_meeting}/{total_experiments} experiments meet it)",
+                'should_stop': False,
+                'experiments_meeting': experiments_meeting
+            }
+
+    # Case 3: Max above all data (useless)
+    else:
+        return {
+            'severity': 'warning',
+            'category': 'useless_max',
+            'message': f"{response_name} Max={max_val:.2f} has no effect (all data is already <= {data_max:.2f})",
+            'detail': f"Your data range is {data_min:.2f} to {data_max:.2f}. All {total_experiments} experiments already meet this Max constraint.",
+            'should_stop': False,
+            'experiments_meeting': total_experiments
+        }
 
 # Bayesian Optimization imports
 try:
@@ -91,6 +246,13 @@ class AnalysisTab(ttk.Frame):
         self.response_checkboxes = {}  # {column_name: (var, direction_var)}
         self.selected_responses = []  # List of selected response column names
         self.response_directions = {}  # {column_name: 'maximize' or 'minimize'}
+
+        # Debug log collector
+        self.debug_log = []
+        self.CONSOLE_DEBUG = False  # Set to True to see debug messages in console
+
+        # Error tracking
+        self.has_analysis_error = False  # Set to True if analysis encounters an error
 
         # Setup GUI
         self.setup_gui()
@@ -402,7 +564,7 @@ class AnalysisTab(ttk.Frame):
             ),
             "recommendations": (
                 "How to Read Next Experiments\n\n"
-                "Bayesian Optimization (BO) suggests intelligent next experiments:\n\n"
+                "Bayesian Optimization (BO) suggests next experiments based on your data:\n\n"
                 "• Suggestions are ranked by expected improvement\n"
                 "• BO balances exploration (new regions) vs exploitation (promising regions)\n"
                 "• Each suggestion shows predicted factor values\n"
@@ -410,7 +572,7 @@ class AnalysisTab(ttk.Frame):
                 "Tips:\n"
                 "• Start with top 3-5 suggestions\n"
                 "• Add results back to dataset and re-analyze\n"
-                "• BO gets smarter with each iteration"
+                "• BO improves predictions with more data"
             ),
             "optimization": (
                 "How to Read Optimization Details\n\n"
@@ -419,7 +581,7 @@ class AnalysisTab(ttk.Frame):
                 "• Cool colors (blue/purple) = Predicted low response regions\n"
                 "• Red dots = Your existing experiments\n"
                 "• Gaps between dots = Unexplored regions to test\n\n"
-                "The algorithm learns from your data to suggest intelligent next experiments\n"
+                "The algorithm uses your data to suggest next experiments\n"
                 "that balance exploring new areas with exploiting promising regions."
             )
         }
@@ -530,16 +692,21 @@ class AnalysisTab(ttk.Frame):
                                           values=['Maximize', 'Minimize'],
                                           state='readonly', width=10)
             direction_combo.grid(row=idx+1, column=1, padx=10, pady=2)
+            direction_combo.bind('<<ComboboxSelected>>', lambda e: self._update_selected_responses())
 
             # Min constraint entry
             min_var = tk.StringVar(value='')
             min_entry = ttk.Entry(self.response_frame, textvariable=min_var, width=10)
             min_entry.grid(row=idx+1, column=2, padx=5, pady=2)
+            min_entry.bind('<FocusOut>', lambda e: self._update_selected_responses())
+            min_entry.bind('<Return>', lambda e: self._update_selected_responses())
 
             # Max constraint entry
             max_var = tk.StringVar(value='')
             max_entry = ttk.Entry(self.response_frame, textvariable=max_var, width=10)
             max_entry.grid(row=idx+1, column=3, padx=5, pady=2)
+            max_entry.bind('<FocusOut>', lambda e: self._update_selected_responses())
+            max_entry.bind('<Return>', lambda e: self._update_selected_responses())
 
             # Store references
             self.response_checkboxes[col_name] = (var, direction_var, min_var, max_var)
@@ -564,6 +731,13 @@ class AnalysisTab(ttk.Frame):
         # Initial update
         self._update_selected_responses()
 
+    def _debug_log(self, message):
+        """Collect debug messages to display at the end"""
+        self.debug_log.append(message)
+        # Set CONSOLE_DEBUG = True in __init__ if you need console output
+        if hasattr(self, 'CONSOLE_DEBUG') and self.CONSOLE_DEBUG:
+            print(message)
+
     def _update_selected_responses(self):
         """Update selected responses list and enable/disable analyze button"""
         self.selected_responses = []
@@ -576,6 +750,8 @@ class AnalysisTab(ttk.Frame):
                 direction = 'minimize' if direction_var.get() == 'Minimize' else 'maximize'
                 self.response_directions[col_name] = direction
 
+                self._debug_log(f"[DEBUG UI] Response '{col_name}': direction={direction} (UI dropdown value: '{direction_var.get()}')")
+
                 min_val = min_var.get().strip()
                 max_val = max_var.get().strip()
 
@@ -583,12 +759,16 @@ class AnalysisTab(ttk.Frame):
                 if min_val:
                     try:
                         constraint['min'] = float(min_val)
+                        self._debug_log(f"[DEBUG UI] Response '{col_name}': min constraint = {constraint['min']}")
                     except ValueError:
+                        self._debug_log(f"[DEBUG UI] Response '{col_name}': invalid min value '{min_val}'")
                         pass
                 if max_val:
                     try:
                         constraint['max'] = float(max_val)
+                        self._debug_log(f"[DEBUG UI] Response '{col_name}': max constraint = {constraint['max']}")
                     except ValueError:
+                        self._debug_log(f"[DEBUG UI] Response '{col_name}': invalid max value '{max_val}'")
                         pass
 
                 if constraint:
@@ -607,9 +787,21 @@ class AnalysisTab(ttk.Frame):
             messagebox.showwarning("Warning", "Please select a data file first.")
             return
 
+        # Clear debug log and error flag at start of new analysis
+        self.debug_log = []
+        self.has_analysis_error = False
+
+        # Update selected responses to capture latest dropdown/constraint values
+        self._update_selected_responses()
+
         if not self.selected_responses:
             messagebox.showwarning("Warning", "Please select at least one response variable.")
             return
+
+        self._debug_log(f"\n[DEBUG ANALYZE] Starting analysis with:")
+        self._debug_log(f"  - Selected responses: {self.selected_responses}")
+        self._debug_log(f"  - Response directions: {self.response_directions}")
+        self._debug_log(f"  - Response constraints: {self.response_constraints}")
 
         self.main_window.update_status("Analyzing...")
         self.update()
@@ -727,14 +919,18 @@ class AnalysisTab(ttk.Frame):
             self.display_plots()
             self.display_recommendations()
 
-            # Display optimization plot if available
-            if AX_AVAILABLE and self.optimizer:
+            # Display optimization plot if available and initialized
+            if AX_AVAILABLE and self.optimizer and self.optimizer.is_initialized:
                 self.display_optimization_plot()
 
             self.export_stats_btn.config(state='normal')
             self.export_plots_btn.config(state='normal')
 
-            # Show completion status
+            # Show completion status (only if no analysis errors occurred)
+            if self.has_analysis_error:
+                # Error was already shown, don't show success
+                return
+
             chosen_model_name = self.analyzer.MODEL_TYPES[chosen_model]
 
             if len(self.selected_responses) > 1:
@@ -1172,19 +1368,171 @@ class AnalysisTab(ttk.Frame):
         self.recommendations_text.insert(tk.END, "-"*80 + "\n")
         self.recommendations_text.insert(tk.END, f"Based on R² = {r_squared:.3f}, {n_obs} observations, {len(sig_factors)} significant factors\n\n")
         
-        # Find optimal condition from data (row with highest response)
+        # Find optimal condition from data based on optimization direction
         clean_data = self.handler.clean_data
-        max_idx = clean_data[self.handler.response_column].idxmax()
-        optimal_response = clean_data.loc[max_idx, self.handler.response_column]
-        
+
+        # Get direction for this response (default to maximize for backward compatibility)
+        response_direction = self.response_directions.get(self.handler.response_column, 'maximize')
+
+        self._debug_log(f"[DEBUG BEST] Finding best experiment for '{self.handler.response_column}'")
+        self._debug_log(f"  - Direction: {response_direction}")
+        self._debug_log(f"  - Value range: {clean_data[self.handler.response_column].min()} to {clean_data[self.handler.response_column].max()}")
+        self._debug_log(f"  - Constraints: {self.response_constraints.get(self.handler.response_column, 'None')}")
+
+        # Filter by constraints if any exist for this response
+        filtered_data = clean_data.copy()
+        constraint_applied = False
+        constraint_msg = ""
+
+        if self.handler.response_column in self.response_constraints:
+            constraint = self.response_constraints[self.handler.response_column]
+            original_count = len(filtered_data)
+
+            if 'min' in constraint:
+                min_val = constraint['min']
+                filtered_data = filtered_data[filtered_data[self.handler.response_column] >= min_val]
+                constraint_msg += f" >= {min_val}"
+                constraint_applied = True
+
+            if 'max' in constraint:
+                max_val = constraint['max']
+                filtered_data = filtered_data[filtered_data[self.handler.response_column] <= max_val]
+                constraint_msg += f" <= {max_val}" if not constraint_msg else f" and <= {max_val}"
+                constraint_applied = True
+
+            self._debug_log(f"  - After constraint filtering: {len(filtered_data)}/{original_count} experiments remain")
+
         self.recommendations_text.insert(tk.END, "="*80 + "\n")
-        self.recommendations_text.insert(tk.END, "BEST OBSERVED CONDITION (from your data)\n")
+        self.recommendations_text.insert(tk.END, "BEST OBSERVED EXPERIMENT\n")
         self.recommendations_text.insert(tk.END, "-"*80 + "\n")
-        self.recommendations_text.insert(tk.END, f"Response Value: {optimal_response:.2f}\n\n")
-        
+
+        # Check if any experiments meet constraints
+        if constraint_applied and len(filtered_data) == 0:
+            # Detect logical contradictions between direction and constraints
+            data_min = clean_data[self.handler.response_column].min()
+            data_max = clean_data[self.handler.response_column].max()
+            constraint = self.response_constraints[self.handler.response_column]
+
+            is_contradiction = False
+            contradiction_msg = ""
+
+            # Check for contradictions
+            if response_direction == 'minimize' and 'min' in constraint:
+                if constraint['min'] > data_max:
+                    is_contradiction = True
+                    contradiction_msg = (
+                        f"🚨 LOGICAL CONTRADICTION DETECTED!\n\n"
+                        f"You selected:\n"
+                        f"  • Direction: MINIMIZE {self.handler.response_column} (get it as LOW as possible)\n"
+                        f"  • Constraint: {self.handler.response_column} >= {constraint['min']} (must be at least {constraint['min']})\n\n"
+                        f"But your data range is {data_min:.2f} to {data_max:.2f} (all below {constraint['min']}).\n\n"
+                        f"This is contradictory because:\n"
+                        f"  - MINIMIZE means you want the LOWEST value\n"
+                        f"  - But your constraint requires a HIGH value ({constraint['min']})\n\n"
+                        f"Did you mean to MAXIMIZE instead of minimize?\n\n"
+                        f"Please fix this by either:\n"
+                        f"  1. Change direction to MAXIMIZE (if you want {self.handler.response_column} to be high)\n"
+                        f"  2. Remove the minimum constraint (if you truly want the lowest value)\n"
+                        f"  3. Adjust the constraint to a realistic value within your data range\n\n"
+                    )
+
+            elif response_direction == 'maximize' and 'max' in constraint:
+                if constraint['max'] < data_min:
+                    is_contradiction = True
+                    contradiction_msg = (
+                        f"🚨 LOGICAL CONTRADICTION DETECTED!\n\n"
+                        f"You selected:\n"
+                        f"  • Direction: MAXIMIZE {self.handler.response_column} (get it as HIGH as possible)\n"
+                        f"  • Constraint: {self.handler.response_column} <= {constraint['max']} (must be at most {constraint['max']})\n\n"
+                        f"But your data range is {data_min:.2f} to {data_max:.2f} (all above {constraint['max']}).\n\n"
+                        f"This is contradictory because:\n"
+                        f"  - MAXIMIZE means you want the HIGHEST value\n"
+                        f"  - But your constraint requires a LOW value ({constraint['max']})\n\n"
+                        f"Did you mean to MINIMIZE instead of maximize?\n\n"
+                        f"Please fix this by either:\n"
+                        f"  1. Change direction to MINIMIZE (if you want {self.handler.response_column} to be low)\n"
+                        f"  2. Remove the maximum constraint (if you truly want the highest value)\n"
+                        f"  3. Adjust the constraint to a realistic value within your data range\n\n"
+                    )
+
+            if is_contradiction:
+                # Show popup error message
+                if response_direction == 'minimize' and 'min' in constraint:
+                    messagebox.showerror("Logical Contradiction",
+                        f"You selected:\n"
+                        f"  • MINIMIZE {self.handler.response_column}\n"
+                        f"  • Constraint: {self.handler.response_column} >= {constraint['min']}\n\n"
+                        f"Your data range: {data_min:.2f} to {data_max:.2f}\n\n"
+                        f"This is contradictory because MINIMIZE means finding the LOWEST value, "
+                        f"but your constraint requires a HIGH value ({constraint['min']}).\n\n"
+                        f"Did you mean to MAXIMIZE instead?\n\n"
+                        f"Please fix by:\n"
+                        f"  1. Change direction to MAXIMIZE\n"
+                        f"  2. Remove the minimum constraint\n"
+                        f"  3. Adjust constraint to match your data range")
+                elif response_direction == 'maximize' and 'max' in constraint:
+                    messagebox.showerror("Logical Contradiction",
+                        f"You selected:\n"
+                        f"  • MAXIMIZE {self.handler.response_column}\n"
+                        f"  • Constraint: {self.handler.response_column} <= {constraint['max']}\n\n"
+                        f"Your data range: {data_min:.2f} to {data_max:.2f}\n\n"
+                        f"This is contradictory because MAXIMIZE means finding the HIGHEST value, "
+                        f"but your constraint requires a LOW value ({constraint['max']}).\n\n"
+                        f"Did you mean to MINIMIZE instead?\n\n"
+                        f"Please fix by:\n"
+                        f"  1. Change direction to MINIMIZE\n"
+                        f"  2. Remove the maximum constraint\n"
+                        f"  3. Adjust constraint to match your data range")
+
+                self.main_window.update_status("Error: Logical contradiction in settings")
+
+                # Set error flag to prevent success popup
+                self.has_analysis_error = True
+
+                # Also show in recommendations tab
+                self.recommendations_text.insert(tk.END, contradiction_msg)
+                self.recommendations_text.insert(tk.END, "="*80 + "\n")
+                self.recommendations_text.insert(tk.END, "Analysis cannot continue with contradictory settings.\n")
+                self.recommendations_text.insert(tk.END, "Please adjust your settings and re-run the analysis.\n")
+                return  # Stop the recommendations display
+            else:
+                # No contradiction, just no data meets constraints
+                self.recommendations_text.insert(tk.END, f"⚠️  WARNING: No experiments meet the constraint {self.handler.response_column}{constraint_msg}\n\n")
+                self.recommendations_text.insert(tk.END, f"Your data range: {data_min:.2f} to {data_max:.2f}\n")
+                self.recommendations_text.insert(tk.END, f"Constraint requires: {self.handler.response_column}{constraint_msg}\n\n")
+                self.recommendations_text.insert(tk.END, "Showing best experiment WITHOUT constraint applied:\n\n")
+                filtered_data = clean_data.copy()
+                constraint_applied = False
+
+        # Find best based on direction
+        if response_direction == 'minimize':
+            best_idx = filtered_data[self.handler.response_column].idxmin()
+            self._debug_log(f"  - Using idxmin() for minimize")
+        else:
+            best_idx = filtered_data[self.handler.response_column].idxmax()
+            self._debug_log(f"  - Using idxmax() for maximize")
+
+        optimal_response = filtered_data.loc[best_idx, self.handler.response_column]
+        self._debug_log(f"  - Best value: {optimal_response} at index {best_idx}")
+
+        # Show ID if available
+        direction_text = "lowest" if response_direction == 'minimize' else "highest"
+        constraint_text = f" (meeting constraint{constraint_msg})" if constraint_applied else ""
+        header = f"This is the experiment with the {direction_text} {self.handler.response_column}{constraint_text}."
+        if 'ID' in clean_data.columns:
+            exp_id = clean_data.loc[best_idx, 'ID']
+            header = f"Best Experiment: ID {exp_id} ({direction_text} {self.handler.response_column}{constraint_text})"
+        self.recommendations_text.insert(tk.END, header + "\n\n")
+
+        self.recommendations_text.insert(tk.END, "Experimental Conditions:\n")
         for factor in self.handler.factor_columns:
-            value = clean_data.loc[max_idx, factor]
-            self.recommendations_text.insert(tk.END, f"  • {factor:<30}: {value}\n")
+            value = clean_data.loc[best_idx, factor]
+            if isinstance(value, float):
+                self.recommendations_text.insert(tk.END, f"  • {factor:<30}: {value:.2f}\n")
+            else:
+                self.recommendations_text.insert(tk.END, f"  • {factor:<30}: {value}\n")
+
+        self.recommendations_text.insert(tk.END, f"\nResult:\n  • {self.handler.response_column:<30}: {optimal_response:.2f} ({response_direction})\n")
         
         # Predicted optimal based on model
         self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
@@ -1263,6 +1611,12 @@ class AnalysisTab(ttk.Frame):
                 # Initialize optimizer with current data (multi-response support)
                 exploration_mode = self.exploration_mode_var.get() if hasattr(self, 'exploration_mode_var') else False
 
+                self._debug_log(f"[DEBUG ANALYSIS] Setting optimizer data:")
+                self._debug_log(f"  - Response columns: {self.selected_responses}")
+                self._debug_log(f"  - Response directions: {self.response_directions}")
+                self._debug_log(f"  - Response constraints: {self.response_constraints}")
+                self._debug_log(f"  - Exploration mode: {exploration_mode}")
+
                 self.optimizer.set_data(
                     data=self.handler.clean_data,
                     factor_columns=self.handler.factor_columns,
@@ -1273,9 +1627,92 @@ class AnalysisTab(ttk.Frame):
                     response_constraints=self.response_constraints,
                     exploration_mode=exploration_mode
                 )
+
+                self._debug_log(f"[DEBUG ANALYSIS] After set_data:")
+                self._debug_log(f"  - Optimizer.response_directions: {self.optimizer.response_directions}")
+                self._debug_log(f"  - Optimizer.response_constraints: {self.optimizer.response_constraints}")
+                self._debug_log(f"  - Optimizer.is_multi_objective: {self.optimizer.is_multi_objective}")
+
+                # COMPREHENSIVE CONSTRAINT VALIDATION
+                # Validate all constraints with severity levels: error, warning, info
+                all_validation_results = []
+                errors = []
+                warnings = []
+                infos = []
+
+                if self.response_constraints:
+                    clean_data = self.handler.clean_data
+                    total_experiments = len(clean_data)
+
+                    for response_name, constraint in self.response_constraints.items():
+                        direction = self.response_directions.get(response_name, 'maximize')
+                        data_min = clean_data[response_name].min()
+                        data_max = clean_data[response_name].max()
+
+                        # Validate this constraint
+                        validation_results = validate_constraint(
+                            response_name, direction, constraint,
+                            data_min, data_max, total_experiments
+                        )
+
+                        all_validation_results.extend(validation_results)
+
+                        # Sort by severity
+                        for result in validation_results:
+                            if result['severity'] == 'error':
+                                errors.append(result)
+                            elif result['severity'] == 'warning':
+                                warnings.append(result)
+                            elif result['severity'] == 'info':
+                                infos.append(result)
+
+                # Handle ERRORS (stop analysis)
+                if errors:
+                    if len(errors) == 1:
+                        # Single error
+                        err = errors[0]
+                        messagebox.showerror("Constraint Error",
+                            f"{err['message']}\n\n{err.get('detail', '')}\n\n"
+                            f"Please fix this issue before running analysis.")
+                    else:
+                        # Multiple errors
+                        error_msg = f"Found {len(errors)} constraint errors:\n\n"
+                        for i, err in enumerate(errors, 1):
+                            error_msg += f"{i}. {err['message']}\n"
+                        error_msg += "\nPlease fix these issues before running analysis."
+                        messagebox.showerror("Multiple Constraint Errors", error_msg)
+
+                    self.main_window.update_status("Error: Invalid constraints")
+                    self.has_analysis_error = True
+
+                    # Show in recommendations tab
+                    self.recommendations_text.insert(tk.END, "❌ CONSTRAINT ERROR(S) DETECTED!\n\n")
+                    for err in errors:
+                        self.recommendations_text.insert(tk.END, f"• {err['message']}\n")
+                    self.recommendations_text.insert(tk.END, "\nAnalysis cannot continue with invalid constraints.\n")
+                    self.recommendations_text.insert(tk.END, "Please fix your constraint settings and re-run the analysis.\n")
+                    return
+
+                # Handle WARNINGS (continue but notify)
+                if warnings:
+                    warning_messages = []
+                    for warn in warnings:
+                        warning_messages.append(warn['message'])
+
+                    if len(warnings) == 1:
+                        messagebox.showwarning("Constraint Warning",
+                            f"{warnings[0]['message']}\n\n{warnings[0].get('detail', '')}\n\n"
+                            f"Analysis will continue, but this constraint may not have the desired effect.")
+                    else:
+                        warning_msg = f"Found {len(warnings)} constraint warnings:\n\n"
+                        for i, warn in enumerate(warnings, 1):
+                            warning_msg += f"{i}. {warn['message']}\n"
+                        warning_msg += "\nAnalysis will continue, but these constraints may not have the desired effect."
+                        messagebox.showwarning("Constraint Warnings", warning_msg)
+
                 self.optimizer.initialize_optimizer()
 
-                # Show constraint information
+                # Show constraint information with validation results
                 if self.response_constraints:
                     self.recommendations_text.insert(tk.END, "\nActive Constraints:\n")
                     for response, constraint in self.response_constraints.items():
@@ -1287,15 +1724,30 @@ class AnalysisTab(ttk.Frame):
                         if parts:
                             self.recommendations_text.insert(tk.END, f"  • {' and '.join(parts)}\n")
 
+                    # Show validation results (warnings and info)
+                    if warnings or infos:
+                        self.recommendations_text.insert(tk.END, "\nConstraint Validation:\n")
+
+                        # Show warnings
+                        for warn in warnings:
+                            self.recommendations_text.insert(tk.END, f"  ⚠️  {warn['message']}\n")
+
+                        # Show infos
+                        for info in infos:
+                            self.recommendations_text.insert(tk.END, f"  ℹ️  {info['message']}\n")
+
+                        self.recommendations_text.insert(tk.END, "\n")
+
                     if exploration_mode:
-                        self.recommendations_text.insert(tk.END, "\n⚠️  Exploration Mode: ON\n")
-                        self.recommendations_text.insert(tk.END, "   Some suggestions may violate constraints to discover unexpected solutions.\n\n")
+                        self.recommendations_text.insert(tk.END, "Exploration Mode: ON\n")
+                        self.recommendations_text.insert(tk.END, "Suggestions may explore outside constraint boundaries.\n\n")
                     else:
-                        self.recommendations_text.insert(tk.END, "\n✓ All suggestions will respect these constraints.\n\n")
+                        self.recommendations_text.insert(tk.END, "Note: Constraints are used as optimization targets.\n")
+                        self.recommendations_text.insert(tk.END, "Bayesian optimization will tend toward constraint boundaries.\n\n")
                 else:
                     self.recommendations_text.insert(tk.END, "\nNo constraints applied.\n\n")
 
-                self.recommendations_text.insert(tk.END, "\nIntelligently suggested next experiments (balancing exploration & exploitation):\n\n")
+                self.recommendations_text.insert(tk.END, "\nSuggested next experiments:\n\n")
 
                 # Get suggestions
                 suggestions = self.optimizer.get_next_suggestions(n=5)
@@ -1311,6 +1763,9 @@ class AnalysisTab(ttk.Frame):
 
                 # Add Pareto frontier analysis for multi-objective
                 if self.optimizer.is_multi_objective:
+                    self._debug_log(f"\n[DEBUG DISPLAY] Displaying Pareto frontier...")
+                    self._debug_log(f"  response_directions at display time: {self.response_directions}")
+
                     pareto_points = self.optimizer.get_pareto_frontier()
                     if pareto_points and len(pareto_points) > 0:
                         self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
@@ -1318,19 +1773,46 @@ class AnalysisTab(ttk.Frame):
                         self.recommendations_text.insert(tk.END, "="*80 + "\n\n")
 
                         self.recommendations_text.insert(tk.END,
-                            f"Found {len(pareto_points)} Pareto-optimal solutions (best trade-offs):\n\n")
+                            f"Found {len(pareto_points)} Pareto-optimal experiments (best trade-offs):\n")
+                        self.recommendations_text.insert(tk.END,
+                            "These are experiments you already ran that represent optimal trade-offs.\n\n")
 
                         # Show first 5 Pareto points
                         for i, point in enumerate(pareto_points[:5], 1):
                             violations = self.optimizer.check_constraint_violations(point['objectives'])
 
                             status = "✓" if not violations else "⚠️"
-                            self.recommendations_text.insert(tk.END, f"Pareto Point #{i}: {status}\n")
-                            self.recommendations_text.insert(tk.END, "  Objectives:\n")
+
+                            # Display header with ID
+                            header = f"Pareto Point #{i}: {status}"
+                            if point.get('id') is not None:
+                                header += f" (ID: {point['id']})"
+                            self.recommendations_text.insert(tk.END, header + "\n")
+
+                            if i == 1:  # Debug first point
+                                self._debug_log(f"\n[DEBUG DISPLAY] First Pareto point:")
+                                self._debug_log(f"  ID: {point.get('id')}")
+                                self._debug_log(f"  Objectives: {point['objectives']}")
+                                self._debug_log(f"  Checking directions for each objective:")
+
+                            # Display experimental conditions
+                            if point.get('parameters'):
+                                self.recommendations_text.insert(tk.END, "  Experimental Conditions:\n")
+                                for param_name, param_value in point['parameters'].items():
+                                    if isinstance(param_value, float):
+                                        self.recommendations_text.insert(tk.END, f"    • {param_name}: {param_value:.2f}\n")
+                                    else:
+                                        self.recommendations_text.insert(tk.END, f"    • {param_name}: {param_value}\n")
+
+                            # Display objectives
+                            self.recommendations_text.insert(tk.END, "  Results:\n")
                             for resp, value in point['objectives'].items():
-                                direction = self.response_directions[resp]
+                                direction = self.response_directions.get(resp, 'maximize')
+                                if i == 1:  # Debug first point
+                                    self._debug_log(f"    {resp}: direction={direction}")
                                 arrow = '↑' if direction == 'maximize' else '↓'
-                                self.recommendations_text.insert(tk.END, f"    {arrow} {resp:<25}: {value:.4f}\n")
+                                direction_text = '(maximize)' if direction == 'maximize' else '(minimize)'
+                                self.recommendations_text.insert(tk.END, f"    {arrow} {resp:<25}: {value:.4f} {direction_text}\n")
 
                             if violations:
                                 self.recommendations_text.insert(tk.END, "  ⚠️  Constraint Violations:\n")
@@ -1350,8 +1832,7 @@ class AnalysisTab(ttk.Frame):
                             "   View 'Optimization Details' tab for Pareto frontier visualization.\n\n")
 
                 self.recommendations_text.insert(tk.END,
-                    "💡 TIP: These suggestions use machine learning to predict where to test next.\n"
-                    "   View 'Optimization Details' tab for visualization of predicted response surface.\n"
+                    "TIP: View 'Optimization Details' tab for visualization of predicted response surface.\n"
                 )
                 
                 # Enable export button after successful BO initialization
@@ -1368,8 +1849,18 @@ class AnalysisTab(ttk.Frame):
                 # Disable export button if BO failed
                 if hasattr(self, 'export_bo_button'):
                     self.export_bo_button.config(state='disabled')
-            
+
             self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
+
+        # Display collected debug log at the end (only if debug mode enabled)
+        # Set SHOW_DEBUG_LOG = True if you need to see internal debugging information
+        SHOW_DEBUG_LOG = False
+        if SHOW_DEBUG_LOG and self.debug_log:
+            self.recommendations_text.insert(tk.END, "\nDEBUG LOG\n")
+            self.recommendations_text.insert(tk.END, "="*80 + "\n")
+            for log_entry in self.debug_log:
+                self.recommendations_text.insert(tk.END, log_entry + "\n")
+            self.recommendations_text.insert(tk.END, "="*80 + "\n")
 
     def _create_optimization_export_button(self):
         """Create appropriate export button based on optimization type"""

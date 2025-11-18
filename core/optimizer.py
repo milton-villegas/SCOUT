@@ -14,8 +14,7 @@ from datetime import datetime
 # Check if Ax is available
 try:
     from ax.service.ax_client import AxClient, ObjectiveProperties
-    from ax.core.outcome_constraint import OutcomeConstraint
-    from ax.core.types import ComparisonOp
+    # Note: OutcomeConstraint and ComparisonOp imports removed - not currently used
     AX_AVAILABLE = True
 except ImportError:
     AX_AVAILABLE = False
@@ -31,6 +30,9 @@ class BayesianOptimizer:
         'warning': '#D55E00',      # Vermillion
     }
 
+    # Debug flag - set to True to see detailed console output
+    DEBUG = False
+
     def __init__(self):
         self.ax_client = None
         self.data = None
@@ -41,12 +43,14 @@ class BayesianOptimizer:
         self.response_columns = []  # Multi-response support
         self.response_directions = {}  # {response_name: 'maximize' or 'minimize'}
         self.response_constraints = {}  # {response_name: {'min': val, 'max': val}}
+        self.objective_constraints = {}  # Constraints on objectives (for post-filtering)
         self.exploration_mode = False  # Allow suggestions outside constraints
         self.factor_bounds = {}
         self.is_initialized = False
         self.is_multi_objective = False  # Track if using multi-objective optimization
         self.name_mapping = {}  # Maps sanitized names back to original names
         self.reverse_mapping = {}  # Maps original names to sanitized names
+        self.trial_metadata = {}  # Maps trial_index to original row data
     
     def _sanitize_name(self, name):
         """Replace spaces and special characters with underscores for Ax compatibility"""
@@ -82,19 +86,35 @@ class BayesianOptimizer:
 
         # Store optimization directions
         self.response_directions = response_directions or {}
+        if self.DEBUG:
+            print(f"[DEBUG OPTIMIZER] set_data() received:")
+            print(f"  - response_columns: {self.response_columns}")
+            print(f"  - response_directions (input): {response_directions}")
+
         # Default to maximize if not specified
         for resp in self.response_columns:
             if resp not in self.response_directions:
                 self.response_directions[resp] = 'maximize'
+                if self.DEBUG:
+                    print(f"  - '{resp}' direction not specified, defaulting to 'maximize'")
+
+        if self.DEBUG:
+            print(f"  - response_directions (final): {self.response_directions}")
 
         # Store response constraints
         self.response_constraints = response_constraints or {}
+        if self.DEBUG:
+            print(f"  - response_constraints: {self.response_constraints}")
 
         # Store exploration mode
         self.exploration_mode = exploration_mode
+        if self.DEBUG:
+            print(f"  - exploration_mode: {self.exploration_mode}")
 
         # Multi-objective if more than one response
         self.is_multi_objective = len(self.response_columns) > 1
+        if self.DEBUG:
+            print(f"  - is_multi_objective: {self.is_multi_objective}")
 
         # Create name mappings
         self.reverse_mapping = {name: self._sanitize_name(name) for name in factor_columns}
@@ -168,67 +188,122 @@ class BayesianOptimizer:
         objectives = {}
         if self.is_multi_objective:
             # Multi-objective optimization
-            print(f"ℹ️  Initializing multi-objective Bayesian Optimization")
-            print(f"   Optimizing {len(self.response_columns)} objectives:")
+            if self.DEBUG:
+                print(f"\n[DEBUG INIT] Initializing multi-objective Bayesian Optimization")
+                print(f"  Optimizing {len(self.response_columns)} objectives:")
             for response in self.response_columns:
                 direction = self.response_directions[response]
                 minimize_this = (direction == 'minimize')
                 objectives[response] = ObjectiveProperties(minimize=minimize_this)
-                arrow = '↓' if minimize_this else '↑'
-                print(f"     {arrow} {response}: {direction}")
+                if self.DEBUG:
+                    arrow = '↓' if minimize_this else '↑'
+                    print(f"    {arrow} {response}: {direction} (Ax minimize={minimize_this})")
         else:
             # Single-objective (backward compatible)
+            direction = self.response_directions.get(self.response_column, 'maximize')
+            minimize = (direction == 'minimize')
             objectives[self.response_column] = ObjectiveProperties(minimize=minimize)
+            if self.DEBUG:
+                print(f"\n[DEBUG INIT] Single-objective optimization:")
+                arrow = '↓' if minimize else '↑'
+                print(f"  {arrow} {self.response_column}: {direction} (Ax minimize={minimize})")
 
         # Build outcome constraints from response_constraints
+        # Ax does NOT allow constraints on objective metrics, so separate them
         outcome_constraints = []
+        objective_constraints = {}  # Store constraints on objectives for post-filtering
+
+        if self.DEBUG:
+            print(f"\n[DEBUG INIT] Building outcome constraints...")
+            print(f"  self.response_constraints = {self.response_constraints}")
+            print(f"  self.exploration_mode = {self.exploration_mode}")
+            print(f"  self.response_columns (objectives) = {self.response_columns}")
+
         if self.response_constraints and not self.exploration_mode:
-            print(f"ℹ️  Applying response constraints:")
+            if self.DEBUG:
+                print(f"[DEBUG INIT] Processing response constraints:")
             for response, constraint in self.response_constraints.items():
-                if 'min' in constraint:
-                    min_val = constraint['min']
-                    outcome_constraints.append(
-                        OutcomeConstraint(
-                            metric_name=response,
-                            op=ComparisonOp.GEQ,
-                            bound=min_val,
-                            relative=False
-                        )
-                    )
-                    print(f"     {response} ≥ {min_val}")
-                if 'max' in constraint:
-                    max_val = constraint['max']
-                    outcome_constraints.append(
-                        OutcomeConstraint(
-                            metric_name=response,
-                            op=ComparisonOp.LEQ,
-                            bound=max_val,
-                            relative=False
-                        )
-                    )
-                    print(f"     {response} ≤ {max_val}")
+                if self.DEBUG:
+                    print(f"  Constraint for '{response}': {constraint}")
+
+                # Check if this constraint is on an objective metric
+                if response in self.response_columns:
+                    if self.DEBUG:
+                        print(f"    ⚠️  '{response}' is an OBJECTIVE - Ax won't accept constraint")
+                        print(f"    → Will post-filter BO suggestions instead")
+                    objective_constraints[response] = constraint
+                else:
+                    # This is a constraint on a non-objective metric - Ax can handle it
+                    if self.DEBUG:
+                        print(f"    ✓ '{response}' is NOT an objective - can add to Ax")
+                    try:
+                        if 'min' in constraint:
+                            min_val = constraint['min']
+                            constraint_str = f"{response} >= {min_val}"
+                            outcome_constraints.append(constraint_str)
+                            if self.DEBUG:
+                                print(f"      ✓ Added: {constraint_str}")
+                        if 'max' in constraint:
+                            max_val = constraint['max']
+                            constraint_str = f"{response} <= {max_val}"
+                            outcome_constraints.append(constraint_str)
+                            if self.DEBUG:
+                                print(f"      ✓ Added: {constraint_str}")
+                    except Exception as e:
+                        if self.DEBUG:
+                            print(f"      ❌ ERROR: {e}")
+                            import traceback
+                            traceback.print_exc()
+
+            if self.DEBUG:
+                print(f"[DEBUG INIT] Constraints to Ax: {len(outcome_constraints)}")
+                print(f"[DEBUG INIT] Constraints for post-filtering: {len(objective_constraints)}")
         elif self.response_constraints and self.exploration_mode:
-            print(f"ℹ️  Exploration mode enabled - constraints will be tracked but not enforced:")
-            for response, constraint in self.response_constraints.items():
-                parts = []
-                if 'min' in constraint:
-                    parts.append(f"{response} ≥ {constraint['min']}")
-                if 'max' in constraint:
-                    parts.append(f"{response} ≤ {constraint['max']}")
-                if parts:
-                    print(f"     {' and '.join(parts)} (guidance only)")
+            if self.DEBUG:
+                print(f"[DEBUG INIT] Exploration mode enabled - constraints tracked but NOT enforced:")
+                for response, constraint in self.response_constraints.items():
+                    parts = []
+                    if 'min' in constraint:
+                        parts.append(f"{response} ≥ {constraint['min']}")
+                    if 'max' in constraint:
+                        parts.append(f"{response} ≤ {constraint['max']}")
+                    if parts:
+                        print(f"  {' and '.join(parts)} (guidance only)")
+        else:
+            if self.DEBUG:
+                print(f"[DEBUG INIT] No constraints to apply")
+
+        # Store objective constraints for post-filtering in get_next_suggestions
+        self.objective_constraints = objective_constraints
 
         # Create Ax client
+        if self.DEBUG:
+            print(f"\n[DEBUG INIT] Creating Ax experiment...")
+            print(f"  Parameters: {len(parameters)} defined")
+            print(f"  Objectives: {list(objectives.keys())}")
+            print(f"  Outcome constraints: {len(outcome_constraints)} defined")
+
         self.ax_client = AxClient()
-        self.ax_client.create_experiment(
-            name="doe_optimization",
-            parameters=parameters,
-            objectives=objectives,
-            outcome_constraints=outcome_constraints if outcome_constraints else None,
-            choose_generation_strategy_kwargs={"num_initialization_trials": 0}
-        )
-        
+        try:
+            self.ax_client.create_experiment(
+                name="doe_optimization",
+                parameters=parameters,
+                objectives=objectives,
+                outcome_constraints=outcome_constraints if outcome_constraints else None,
+                choose_generation_strategy_kwargs={"num_initialization_trials": 0}
+            )
+            if self.DEBUG:
+                print(f"[DEBUG INIT] ✓ Ax experiment created successfully")
+        except Exception as e:
+            if self.DEBUG:
+                print(f"[DEBUG INIT] ❌ ERROR creating Ax experiment: {e}")
+                import traceback
+                traceback.print_exc()
+            raise
+
         # Add existing data as completed trials using sanitized names
+        if self.DEBUG:
+            print(f"\n[DEBUG INIT] Adding {len(self.data)} existing trials to Ax...")
         for idx, row in self.data.iterrows():
             params = {}
             for factor in self.factor_columns:
@@ -243,9 +318,21 @@ class BayesianOptimizer:
                         params[sanitized_name] = float(val)
                 else:
                     params[sanitized_name] = str(val)
-            
+
             # Add trial
             _, trial_index = self.ax_client.attach_trial(parameters=params)
+
+            # Store metadata for this trial
+            exp_id = row.get('ID', None) if 'ID' in row.index else None
+            metadata = {
+                'row_index': idx,
+                'id': exp_id,
+                'parameters': {factor: row[factor] for factor in self.factor_columns}
+            }
+            self.trial_metadata[trial_index] = metadata
+
+            if self.DEBUG and idx < 3:  # Show first 3 for debugging
+                print(f"  Trial {trial_index}: ID={exp_id}, row_index={idx}")
 
             # Build raw_data dict for all responses
             if self.is_multi_objective:
@@ -259,7 +346,9 @@ class BayesianOptimizer:
             )
 
         self.is_initialized = True
-        print(f"✓ Initialized BO with {len(self.data)} existing trials")
+        if self.DEBUG:
+            print(f"[DEBUG INIT] ✓ Initialized BO with {len(self.data)} trials")
+            print(f"  Stored metadata for {len(self.trial_metadata)} trials")
 
     def check_constraint_violations(self, predicted_values):
         """Check if predicted response values violate constraints
@@ -281,31 +370,55 @@ class BayesianOptimizer:
             value = predicted_values[response]
 
             if 'min' in constraint and value < constraint['min']:
-                violations.append(f"{response} = {value:.2f} < {constraint['min']} (min)")
+                msg = f"{response} = {value:.2f} < {constraint['min']} (min)"
+                violations.append(msg)
             if 'max' in constraint and value > constraint['max']:
-                violations.append(f"{response} = {value:.2f} > {constraint['max']} (max)")
+                msg = f"{response} = {value:.2f} > {constraint['max']} (max)"
+                violations.append(msg)
 
         return violations
 
     def get_next_suggestions(self, n=5):
-        """Get next experiment suggestions with original factor names and proper rounding"""
+        """Get next experiment suggestions with original factor names and proper rounding
+
+        If objective constraints exist, generates extra suggestions and filters them.
+        """
         if not self.is_initialized:
             raise ValueError("Optimizer not initialized. Call initialize_optimizer() first.")
-        
-        suggestions = []
-        for _ in range(n):
+
+        # Check if we have objective constraints
+        # NOTE: We don't filter objective constraints because:
+        # 1. Model predictions aren't reliably available for pending trials
+        # 2. BO naturally respects optimization direction
+        # 3. Constraints on objectives are guidance, not hard limits
+        has_objective_constraints = hasattr(self, 'objective_constraints') and self.objective_constraints
+
+        # For objective constraints, NEVER filter - just return BO suggestions
+        # User can see predicted values and decide which to run
+        max_attempts = n
+        need_filtering = False
+
+        all_suggestions = []
+        filtered_suggestions = []
+
+        if self.DEBUG:
+            print(f"\n[DEBUG SUGGESTIONS] Generating {n} BO suggestions")
+            if has_objective_constraints:
+                print(f"  Objective constraints (informational): {self.objective_constraints}")
+                print(f"  Note: BO suggestions not filtered by constraints")
+
+        for i in range(max_attempts):
             params, trial_index = self.ax_client.get_next_trial()
-            
+
             # Convert sanitized names back to original names and apply rounding
             original_params = {}
             for sanitized_name, value in params.items():
                 original_name = self.name_mapping[sanitized_name]
-                
+
                 # Apply rounding based on factor type
                 if isinstance(value, (int, float)):
                     # Check if this is a pH factor (now categorical, no rounding needed)
                     if 'ph' in original_name.lower() and 'buffer' in original_name.lower():
-                        # pH is categorical - value comes directly from tested values
                         original_params[original_name] = float(value)
                     else:
                         # Round to 2 decimals for other numeric factors
@@ -314,18 +427,99 @@ class BayesianOptimizer:
                 else:
                     # Categorical factors - keep as is
                     original_params[original_name] = value
-            
-            suggestions.append(original_params)
+
+            # Get model prediction for this suggestion
+            model_prediction = self.ax_client.get_model_predictions()
+
+            # Extract predicted means from the trial
+            # Structure: model_prediction = ({metric_name: {trial_index: (mean, sem)}}, {cov_data})
+            predicted_values = {}
+            if model_prediction and model_prediction[0]:
+                for metric_name in self.response_columns:
+                    if metric_name in model_prediction[0] and trial_index in model_prediction[0][metric_name]:
+                        # Get (mean, sem) tuple and extract mean
+                        predicted_values[metric_name] = model_prediction[0][metric_name][trial_index][0]
+
+            if self.DEBUG and i < 2:  # Debug first 2
+                print(f"  Trial {trial_index}: predicted {predicted_values}")
+
             # Abandon trial so we can generate more suggestions
             self.ax_client.abandon_trial(trial_index)
-        
-        return suggestions
+
+            # For compatible constraints (Minimize+Min or Maximize+Max), don't filter
+            # Just accept all suggestions since BO naturally respects these
+            if not need_filtering:
+                all_suggestions.append(original_params)
+                if len(all_suggestions) >= n:
+                    break
+                continue  # Skip filtering logic
+
+            # Check if this suggestion meets objective constraints (for incompatible constraints only)
+            if has_objective_constraints and predicted_values:
+                meets_constraints = True
+                violations = []
+
+                for response, constraint in self.objective_constraints.items():
+                    if response in predicted_values:
+                        value = predicted_values[response]
+                        direction = self.response_directions.get(response, 'maximize')
+
+                        # Check constraints, but be lenient for "compatible" constraints
+                        # Compatible: Minimize + Min constraint OR Maximize + Max constraint
+                        # These define optimization boundaries, not hard filters
+
+                        if 'min' in constraint:
+                            is_compatible = (direction == 'minimize')  # Minimizing toward a minimum threshold
+                            if value < constraint['min']:
+                                if not is_compatible:  # Only enforce strictly if incompatible
+                                    meets_constraints = False
+                                    violations.append(f"{response}={value:.2f} < {constraint['min']}")
+                                # For compatible constraints, allow some tolerance
+                                elif value < constraint['min'] * 0.95:  # 5% tolerance
+                                    meets_constraints = False
+                                    violations.append(f"{response}={value:.2f} < {constraint['min']} (>5% below)")
+
+                        if 'max' in constraint:
+                            is_compatible = (direction == 'maximize')  # Maximizing toward a maximum threshold
+                            if value > constraint['max']:
+                                if not is_compatible:  # Only enforce strictly if incompatible
+                                    meets_constraints = False
+                                    violations.append(f"{response}={value:.2f} > {constraint['max']}")
+                                # For compatible constraints, allow some tolerance
+                                elif value > constraint['max'] * 1.05:  # 5% tolerance
+                                    meets_constraints = False
+                                    violations.append(f"{response}={value:.2f} > {constraint['max']} (>5% above)")
+
+                if meets_constraints:
+                    filtered_suggestions.append(original_params)
+                    if len(filtered_suggestions) >= n:
+                        break  # Got enough valid suggestions
+                else:
+                    if self.DEBUG and i < 3:  # Show first few rejections
+                        print(f"  ⚠️  Suggestion {i+1} rejected: {', '.join(violations)}")
+            else:
+                # No objective constraints, accept all suggestions
+                all_suggestions.append(original_params)
+                if len(all_suggestions) >= n:
+                    break
+
+        result = filtered_suggestions if need_filtering else all_suggestions
+
+        if self.DEBUG:
+            if need_filtering:
+                print(f"[DEBUG SUGGESTIONS] Generated {max_attempts} candidates, {len(result)} met constraints")
+                if len(result) < n:
+                    print(f"  ⚠️  WARNING: Could only find {len(result)}/{n} valid suggestions")
+            else:
+                print(f"[DEBUG SUGGESTIONS] Generated {len(result)} suggestions (no filtering needed)")
+
+        return result[:n]  # Return at most n suggestions
 
     def get_pareto_frontier(self):
         """Get Pareto frontier for multi-objective optimization
 
         Returns:
-            List of dicts with 'parameters' and 'objectives' for Pareto-optimal points
+            List of dicts with 'parameters', 'objectives', 'id', and 'row_index' for Pareto-optimal points
         """
         if not self.is_initialized:
             raise ValueError("Optimizer not initialized")
@@ -334,30 +528,59 @@ class BayesianOptimizer:
             return None  # No Pareto frontier for single-objective
 
         try:
+            if self.DEBUG:
+                print(f"\n[DEBUG PARETO] Getting Pareto frontier...")
             # Get Pareto frontier from Ax
             pareto_frontier = self.ax_client.get_pareto_optimal_parameters()
+            if self.DEBUG:
+                print(f"  Ax returned {len(pareto_frontier)} Pareto-optimal trials")
 
             # Convert to more usable format
             pareto_points = []
-            for arm_name, (params, values) in pareto_frontier.items():
-                # Convert sanitized names back to original
-                original_params = {}
-                for sanitized_name, value in params.items():
-                    original_name = self.name_mapping[sanitized_name]
-                    original_params[original_name] = value
+            for i, (arm_name, (params, values)) in enumerate(pareto_frontier.items(), 1):
+                # Extract trial index from arm_name (format is typically "trial_index_arm_index")
+                trial_index = int(arm_name.split('_')[0])
+
+                # Get metadata for this trial
+                metadata = self.trial_metadata.get(trial_index, {})
+
+                # Use stored original parameters from metadata
+                original_params = metadata.get('parameters', {})
+
+                # If metadata not found, fall back to converting sanitized names
+                if not original_params:
+                    if self.DEBUG:
+                        print(f"  ⚠️  Pareto point {i}: No metadata found for trial {trial_index}, using fallback")
+                    original_params = {}
+                    for sanitized_name, value in params.items():
+                        if sanitized_name in self.name_mapping:
+                            original_name = self.name_mapping[sanitized_name]
+                            original_params[original_name] = value
 
                 # Extract mean values from tuple: values = (mean_dict, cov_dict)
                 mean_dict = values[0] if isinstance(values, tuple) else values
 
+                exp_id = metadata.get('id')
+                if self.DEBUG and i <= 3:  # Show first 3 for debugging
+                    print(f"  Pareto point {i}: Trial {trial_index}, ID={exp_id}")
+                    print(f"    Objectives: {mean_dict}")
+
                 pareto_points.append({
                     'parameters': original_params,
-                    'objectives': mean_dict  # Dict of {response_name: mean_value}
+                    'objectives': mean_dict,
+                    'id': exp_id,
+                    'row_index': metadata.get('row_index')
                 })
 
+            if self.DEBUG:
+                print(f"[DEBUG PARETO] ✓ Extracted {len(pareto_points)} Pareto points with metadata")
             return pareto_points
 
         except Exception as e:
-            print(f"⚠️  Could not extract Pareto frontier: {str(e)}")
+            if self.DEBUG:
+                print(f"⚠️  Could not extract Pareto frontier: {str(e)}")
+                import traceback
+                traceback.print_exc()
             return None
 
     def calculate_hypervolume(self, reference_point=None):
