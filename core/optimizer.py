@@ -35,9 +35,12 @@ class BayesianOptimizer:
         self.factor_columns = []
         self.numeric_factors = []
         self.categorical_factors = []
-        self.response_column = None
+        self.response_column = None  # Backward compatibility (primary response)
+        self.response_columns = []  # Multi-response support
+        self.response_directions = {}  # {response_name: 'maximize' or 'minimize'}
         self.factor_bounds = {}
         self.is_initialized = False
+        self.is_multi_objective = False  # Track if using multi-objective optimization
         self.name_mapping = {}  # Maps sanitized names back to original names
         self.reverse_mapping = {}  # Maps original names to sanitized names
     
@@ -46,14 +49,40 @@ class BayesianOptimizer:
         sanitized = name.replace(' ', '_').replace('-', '_').replace('(', '').replace(')', '')
         return sanitized
     
-    def set_data(self, data, factor_columns, categorical_factors, numeric_factors, response_column):
-        """Set data and factor information"""
+    def set_data(self, data, factor_columns, categorical_factors, numeric_factors,
+                 response_column=None, response_columns=None, response_directions=None):
+        """Set data and factor information
+
+        Args:
+            response_column: Single response (backward compatibility)
+            response_columns: List of response columns (multi-objective)
+            response_directions: Dict of {response_name: 'maximize' or 'minimize'}
+        """
         self.data = data.copy()
         self.factor_columns = factor_columns
         self.categorical_factors = categorical_factors
         self.numeric_factors = numeric_factors
-        self.response_column = response_column
-        
+
+        # Support both single and multiple responses
+        if response_columns is not None:
+            self.response_columns = response_columns if isinstance(response_columns, list) else [response_columns]
+            self.response_column = self.response_columns[0]  # Primary response for backward compatibility
+        elif response_column is not None:
+            self.response_column = response_column
+            self.response_columns = [response_column]
+        else:
+            raise ValueError("Must specify either response_column or response_columns")
+
+        # Store optimization directions
+        self.response_directions = response_directions or {}
+        # Default to maximize if not specified
+        for resp in self.response_columns:
+            if resp not in self.response_directions:
+                self.response_directions[resp] = 'maximize'
+
+        # Multi-objective if more than one response
+        self.is_multi_objective = len(self.response_columns) > 1
+
         # Create name mappings
         self.reverse_mapping = {name: self._sanitize_name(name) for name in factor_columns}
         self.name_mapping = {self._sanitize_name(name): name for name in factor_columns}
@@ -74,25 +103,30 @@ class BayesianOptimizer:
             self.factor_bounds[factor] = unique_vals
     
     def initialize_optimizer(self, minimize=False):
-        """Initialize Ax client with parameters"""
+        """Initialize Ax client with parameters
+
+        Args:
+            minimize: If single-objective, whether to minimize (backward compatibility)
+                     Ignored if multi-objective (uses response_directions instead)
+        """
         if not AX_AVAILABLE:
             raise ImportError("Ax platform not available. Install with: pip install ax-platform")
-        
+
         # Build parameters list with sanitized names
         parameters = []
         for factor in self.factor_columns:
             sanitized_name = self.reverse_mapping[factor]
-            
+
             if factor in self.numeric_factors:
                 # Special handling for pH - treat as ordered categorical
                 if 'ph' in factor.lower() and 'buffer' in factor.lower():
                     # Get unique pH values that were ACTUALLY TESTED
                     tested_ph_values = sorted(self.data[factor].unique().tolist())
-                    
+
                     print(f"ℹ️  Treating '{factor}' as ordered categorical parameter")
                     print(f"   Tested pH values: {tested_ph_values}")
                     print(f"   BO will only suggest from these tested values (no extrapolation)")
-                    
+
                     parameters.append({
                         "name": sanitized_name,
                         "type": "choice",
@@ -116,13 +150,29 @@ class BayesianOptimizer:
                     "values": self.factor_bounds[factor],
                     "value_type": "str"
                 })
-        
+
+        # Build objectives dict
+        objectives = {}
+        if self.is_multi_objective:
+            # Multi-objective optimization
+            print(f"ℹ️  Initializing multi-objective Bayesian Optimization")
+            print(f"   Optimizing {len(self.response_columns)} objectives:")
+            for response in self.response_columns:
+                direction = self.response_directions[response]
+                minimize_this = (direction == 'minimize')
+                objectives[response] = ObjectiveProperties(minimize=minimize_this)
+                arrow = '↓' if minimize_this else '↑'
+                print(f"     {arrow} {response}: {direction}")
+        else:
+            # Single-objective (backward compatible)
+            objectives[self.response_column] = ObjectiveProperties(minimize=minimize)
+
         # Create Ax client
         self.ax_client = AxClient()
         self.ax_client.create_experiment(
             name="doe_optimization",
             parameters=parameters,
-            objectives={self.response_column: ObjectiveProperties(minimize=minimize)},
+            objectives=objectives,
             choose_generation_strategy_kwargs={"num_initialization_trials": 0}  # Skip Sobol, go straight to BO
         )
         
@@ -144,12 +194,20 @@ class BayesianOptimizer:
             
             # Add trial
             _, trial_index = self.ax_client.attach_trial(parameters=params)
+
+            # Build raw_data dict for all responses
+            if self.is_multi_objective:
+                raw_data = {response: float(row[response]) for response in self.response_columns}
+            else:
+                raw_data = float(row[self.response_column])
+
             self.ax_client.complete_trial(
                 trial_index=trial_index,
-                raw_data=float(row[self.response_column])
+                raw_data=raw_data
             )
-        
+
         self.is_initialized = True
+        print(f"✓ Initialized BO with {len(self.data)} existing trials")
     
     def get_next_suggestions(self, n=5):
         """Get next experiment suggestions with original factor names and proper rounding"""
@@ -184,7 +242,179 @@ class BayesianOptimizer:
             self.ax_client.abandon_trial(trial_index)
         
         return suggestions
-    
+
+    def get_pareto_frontier(self):
+        """Get Pareto frontier for multi-objective optimization
+
+        Returns:
+            List of dicts with 'parameters' and 'objectives' for Pareto-optimal points
+        """
+        if not self.is_initialized:
+            raise ValueError("Optimizer not initialized")
+
+        if not self.is_multi_objective:
+            return None  # No Pareto frontier for single-objective
+
+        try:
+            # Get Pareto frontier from Ax
+            pareto_frontier = self.ax_client.get_pareto_optimal_parameters()
+
+            # Convert to more usable format
+            pareto_points = []
+            for arm_name, (params, values) in pareto_frontier.items():
+                # Convert sanitized names back to original
+                original_params = {}
+                for sanitized_name, value in params.items():
+                    original_name = self.name_mapping[sanitized_name]
+                    original_params[original_name] = value
+
+                # Extract mean values from tuple: values = (mean_dict, cov_dict)
+                mean_dict = values[0] if isinstance(values, tuple) else values
+
+                pareto_points.append({
+                    'parameters': original_params,
+                    'objectives': mean_dict  # Dict of {response_name: mean_value}
+                })
+
+            return pareto_points
+
+        except Exception as e:
+            print(f"⚠️  Could not extract Pareto frontier: {str(e)}")
+            return None
+
+    def calculate_hypervolume(self, reference_point=None):
+        """Calculate hypervolume indicator for multi-objective optimization
+
+        Args:
+            reference_point: Dict of {response_name: reference_value}
+                           If None, uses worst observed values
+
+        Returns:
+            Hypervolume value (higher is better)
+        """
+        if not self.is_multi_objective:
+            return None
+
+        try:
+            from ax.modelbridge.modelbridge_utils import observed_hypervolume
+
+            # Get reference point
+            if reference_point is None:
+                # Use worst observed values as reference
+                reference_point = {}
+                for response in self.response_columns:
+                    direction = self.response_directions[response]
+                    if direction == 'maximize':
+                        reference_point[response] = float(self.data[response].min())
+                    else:  # minimize
+                        reference_point[response] = float(self.data[response].max())
+
+            # Calculate hypervolume
+            hv = observed_hypervolume(
+                modelbridge=None,
+                experiment=self.ax_client.experiment,
+                metrics=list(self.response_columns),
+                reference_point=reference_point
+            )
+
+            return hv
+
+        except Exception as e:
+            print(f"⚠️  Could not calculate hypervolume: {str(e)}")
+            return None
+
+    def plot_pareto_frontier(self):
+        """Create Pareto frontier visualization for multi-objective optimization
+
+        Returns:
+            matplotlib Figure or None
+        """
+        if not self.is_multi_objective:
+            return None
+
+        pareto_points = self.get_pareto_frontier()
+
+        if pareto_points is None or len(pareto_points) == 0:
+            print("⚠️  No Pareto frontier points available")
+            return None
+
+        n_objectives = len(self.response_columns)
+
+        if n_objectives == 2:
+            # 2D scatter plot
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+
+            resp1, resp2 = self.response_columns[0], self.response_columns[1]
+
+            # Plot all observed points
+            all_r1 = self.data[resp1].values
+            all_r2 = self.data[resp2].values
+            ax.scatter(all_r1, all_r2, c='lightgray', s=100, alpha=0.5,
+                      label='Observed', zorder=1, edgecolors='gray', linewidths=0.5)
+
+            # Plot Pareto frontier points
+            pareto_r1 = [p['objectives'][resp1] for p in pareto_points]
+            pareto_r2 = [p['objectives'][resp2] for p in pareto_points]
+            ax.scatter(pareto_r1, pareto_r2, c=self.COLORS['primary'], s=200,
+                      label='Pareto Frontier', zorder=2, marker='*', edgecolors='black', linewidths=1.5)
+
+            # Add arrows showing optimization direction
+            dir1 = self.response_directions[resp1]
+            dir2 = self.response_directions[resp2]
+            arrow1 = '→' if dir1 == 'maximize' else '←'
+            arrow2 = '↑' if dir2 == 'maximize' else '↓'
+
+            ax.set_xlabel(f"{resp1} ({dir1}) {arrow1}", fontsize=12, fontweight='bold')
+            ax.set_ylabel(f"{resp2} ({dir2}) {arrow2}", fontsize=12, fontweight='bold')
+            ax.set_title(f'Pareto Frontier: {resp1} vs {resp2}\n({len(pareto_points)} optimal points)',
+                        fontsize=14, fontweight='bold', pad=15)
+            ax.legend(fontsize=11, loc='best')
+            ax.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            return fig
+
+        elif n_objectives == 3:
+            # 3D scatter plot
+            from mpl_toolkits.mplot3d import Axes3D
+            fig = plt.figure(figsize=(12, 9))
+            ax = fig.add_subplot(111, projection='3d')
+
+            resp1, resp2, resp3 = self.response_columns[0], self.response_columns[1], self.response_columns[2]
+
+            # Plot all observed points
+            all_r1 = self.data[resp1].values
+            all_r2 = self.data[resp2].values
+            all_r3 = self.data[resp3].values
+            ax.scatter(all_r1, all_r2, all_r3, c='lightgray', s=80, alpha=0.4,
+                      label='Observed', edgecolors='gray', linewidths=0.5)
+
+            # Plot Pareto frontier points
+            pareto_r1 = [p['objectives'][resp1] for p in pareto_points]
+            pareto_r2 = [p['objectives'][resp2] for p in pareto_points]
+            pareto_r3 = [p['objectives'][resp3] for p in pareto_points]
+            ax.scatter(pareto_r1, pareto_r2, pareto_r3, c=self.COLORS['primary'], s=250,
+                      label='Pareto Frontier', marker='*', edgecolors='black', linewidths=1.5)
+
+            # Labels
+            dir1 = self.response_directions[resp1]
+            dir2 = self.response_directions[resp2]
+            dir3 = self.response_directions[resp3]
+
+            ax.set_xlabel(f"{resp1} ({dir1})", fontsize=11, fontweight='bold')
+            ax.set_ylabel(f"{resp2} ({dir2})", fontsize=11, fontweight='bold')
+            ax.set_zlabel(f"{resp3} ({dir3})", fontsize=11, fontweight='bold')
+            ax.set_title(f'3D Pareto Frontier\n({len(pareto_points)} optimal points)',
+                        fontsize=14, fontweight='bold', pad=15)
+            ax.legend(fontsize=10)
+
+            plt.tight_layout()
+            return fig
+
+        else:
+            print(f"⚠️  Pareto frontier visualization supports 2-3 objectives (you have {n_objectives})")
+            return None
+
     def _create_suggestion_heatmap(self, factor_x_orig, factor_y_orig,
                                    factor_x_san, factor_y_san, X, Y):
         """Create a heatmap showing where BO suggests exploring - ENHANCED VERSION"""
@@ -409,12 +639,28 @@ class BayesianOptimizer:
         return selected
     
     def get_acquisition_plot(self):
-        """Generate comprehensive BO visualization with 4 panels (GUI preview)"""
+        """Generate comprehensive BO visualization with 4 panels (GUI preview)
+
+        Note: Only for single-objective optimization.
+        For multi-objective, use plot_pareto_frontier() instead.
+        """
         if not self.is_initialized:
             raise ValueError("Optimizer not initialized")
 
+        # This function is only for single-objective
+        if self.is_multi_objective:
+            print("⚠️  get_acquisition_plot() called for multi-objective optimization")
+            print("   Use plot_pareto_frontier() instead for multi-objective")
+            return None
+
+        # Verify we have the response column
+        if self.response_column is None:
+            print("⚠️  No response column set for acquisition plot")
+            return None
+
         # Need at least 2 numeric factors
         if len(self.numeric_factors) < 2:
+            print(f"⚠️  Need at least 2 numeric factors for acquisition plot (have {len(self.numeric_factors)})")
             return None
 
         try:
@@ -431,26 +677,41 @@ class BayesianOptimizer:
 
             print(f"ℹ️  Creating comprehensive BO plots for: {factor_x_original} vs {factor_y_original}")
 
-            # Create grid
-            x_min, x_max = self.factor_bounds[factor_x_original]
-            y_min, y_max = self.factor_bounds[factor_y_original]
+            # Create grid - handle categorical factors specially
+            # For pH (ordered categorical), use only tested values, not continuous range
+            is_x_categorical = ('ph' in factor_x_original.lower() and 'buffer' in factor_x_original.lower())
+            is_y_categorical = ('ph' in factor_y_original.lower() and 'buffer' in factor_y_original.lower())
 
-            # Check if bounds are valid (not constant)
-            if x_min == x_max or y_min == y_max:
-                print(f"⚠ Factor has no variation: {factor_x_original}={x_min} or {factor_y_original}={y_min}")
-                return None
+            if is_x_categorical:
+                # Use only tested pH values for X axis
+                x = np.array(sorted(self.data[factor_x_original].unique()))
+            else:
+                # Continuous factor - use linspace
+                x_min, x_max = self.factor_bounds[factor_x_original]
+                if x_min == x_max:
+                    print(f"⚠ Factor has no variation: {factor_x_original}={x_min}")
+                    return None
+                # Add small padding to bounds
+                x_range = x_max - x_min
+                x_min -= 0.05 * x_range
+                x_max += 0.05 * x_range
+                x = np.linspace(x_min, x_max, 15)
 
-            # Add small padding to bounds
-            x_range = x_max - x_min
-            y_range = y_max - y_min
-            x_min -= 0.05 * x_range
-            x_max += 0.05 * x_range
-            y_min -= 0.05 * y_range
-            y_max += 0.05 * y_range
+            if is_y_categorical:
+                # Use only tested pH values for Y axis
+                y = np.array(sorted(self.data[factor_y_original].unique()))
+            else:
+                # Continuous factor - use linspace
+                y_min, y_max = self.factor_bounds[factor_y_original]
+                if y_min == y_max:
+                    print(f"⚠ Factor has no variation: {factor_y_original}={y_min}")
+                    return None
+                # Add small padding to bounds
+                y_range = y_max - y_min
+                y_min -= 0.05 * y_range
+                y_max += 0.05 * y_range
+                y = np.linspace(y_min, y_max, 15)
 
-            # Use coarser grid for faster GUI preview
-            x = np.linspace(x_min, x_max, 15)
-            y = np.linspace(y_min, y_max, 15)
             X, Y = np.meshgrid(x, y)
 
             # Get a template with all other factors at their median values
@@ -474,6 +735,8 @@ class BayesianOptimizer:
                     parameterizations.append(params)
 
             print(f"ℹ️  Predicting {len(parameterizations)} points using BO model...")
+            print(f"   Response metric: {self.response_column}")
+            print(f"   Grid shape: {X.shape}")
 
             # Get predictions with uncertainty
             try:
@@ -483,17 +746,29 @@ class BayesianOptimizer:
                 )
 
                 # Extract predictions and uncertainty into arrays
-                Z_mean = np.zeros_like(X)
-                Z_sem = np.zeros_like(X)
+                # IMPORTANT: Use dtype=float to prevent truncation when X is integer (categorical factors)
+                Z_mean = np.zeros_like(X, dtype=float)
+                Z_sem = np.zeros_like(X, dtype=float)
+
                 idx = 0
                 for i in range(X.shape[0]):
                     for j in range(X.shape[1]):
-                        pred_mean, pred_sem = predictions_list[idx][self.response_column]
+                        pred = predictions_list[idx]
+
+                        # Ax returns dict format: {response_name: (mean, variance)}
+                        if isinstance(pred, dict):
+                            mean_variance_tuple = pred[self.response_column]
+                            pred_mean = mean_variance_tuple[0]
+                            variance = mean_variance_tuple[1]
+                            pred_sem = np.sqrt(variance)
+                        else:
+                            raise ValueError(f"Unexpected format: {type(pred)}")
+
                         Z_mean[i, j] = pred_mean
                         Z_sem[i, j] = pred_sem
                         idx += 1
 
-                print(f"✓ Successfully predicted all {len(parameterizations)} points")
+                print(f"✓ Predicted {len(parameterizations)} points")
 
             except Exception as e:
                 print(f"\n{'='*60}")
@@ -736,12 +1011,18 @@ class BayesianOptimizer:
                 metric_names=[self.response_column]
             )
 
-            Z_mean = np.zeros_like(X)
-            Z_sem = np.zeros_like(X)
+            # IMPORTANT: Use dtype=float to prevent truncation when X is integer (categorical factors)
+            Z_mean = np.zeros_like(X, dtype=float)
+            Z_sem = np.zeros_like(X, dtype=float)
             idx = 0
             for i in range(X.shape[0]):
                 for j in range(X.shape[1]):
-                    pred_mean, pred_sem = predictions_list[idx][self.response_column]
+                    pred = predictions_list[idx]
+                    # Ax returns dict format: {response_name: (mean, variance)}
+                    mean_variance_tuple = pred[self.response_column]
+                    pred_mean = mean_variance_tuple[0]
+                    variance = mean_variance_tuple[1]
+                    pred_sem = np.sqrt(variance)
                     Z_mean[i, j] = pred_mean
                     Z_sem[i, j] = pred_sem
                     idx += 1

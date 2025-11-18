@@ -87,6 +87,11 @@ class AnalysisTab(ttk.Frame):
         self.results = None
         self.main_effects = None
 
+        # Response selection tracking
+        self.response_checkboxes = {}  # {column_name: (var, direction_var)}
+        self.selected_responses = []  # List of selected response column names
+        self.response_directions = {}  # {column_name: 'maximize' or 'minimize'}
+
         # Setup GUI
         self.setup_gui()
         
@@ -98,17 +103,25 @@ class AnalysisTab(ttk.Frame):
         title_frame.pack(fill='x', padx=10, pady=5)
 
         # File selection
-        file_frame = ttk.LabelFrame(self, text="1. Select Data File", padding=10)
+        file_frame = ttk.LabelFrame(self, text="Select Data File", padding=10)
         file_frame.pack(fill='x', padx=10, pady=5)
-        
+
         self.file_label = ttk.Label(file_frame, text="No file selected")
         self.file_label.pack(side='left', padx=5)
-        
+
         browse_btn = ttk.Button(file_frame, text="Browse...", command=self.browse_file)
         browse_btn.pack(side='right', padx=5)
-        
+
+        # Response selection
+        self.response_frame = ttk.LabelFrame(self, text="Select Response Variables", padding=10)
+        self.response_frame.pack(fill='x', padx=10, pady=5)
+
+        self.response_label = ttk.Label(self.response_frame,
+                                       text="Load a file to see available response columns")
+        self.response_label.pack(padx=5, pady=5)
+
         # Configuration
-        config_frame = ttk.LabelFrame(self, text="2. Configure Analysis", padding=10)
+        config_frame = ttk.LabelFrame(self, text="Configure Analysis", padding=10)
         config_frame.pack(fill='x', padx=10, pady=5)
         
         # Model Type row with info button
@@ -132,93 +145,94 @@ class AnalysisTab(ttk.Frame):
         info_btn = ttk.Button(config_frame, text="?", width=2, command=self.show_model_guide)
         info_btn.grid(row=0, column=2, sticky='w', padx=(2, 0), pady=5)
         
-        self.analyze_btn = ttk.Button(config_frame, text="Analyze Data", 
+        self.analyze_btn = ttk.Button(config_frame, text="Analyze Data",
                                       command=self.analyze_data, state='disabled')
         self.analyze_btn.grid(row=0, column=3, padx=20, pady=5)
-        
+
         # Status bar
         self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(self, textvariable=self.status_var, 
+        status_bar = ttk.Label(self, textvariable=self.status_var,
                               relief=tk.SUNKEN, anchor='w')
         status_bar.pack(fill='x', side='bottom')
-        
-        # Export buttons
-        export_frame = ttk.LabelFrame(self, text="4. Export Results", padding=10)
-        export_frame.pack(fill='x', side='bottom', padx=10, pady=5)
-        
+
+    def create_results_tab(self):
+        """Create the Results tab with results notebook and export buttons"""
+        # Get the parent notebook from main_window
+        parent_notebook = self.main_window.notebook
+
+        # Create Results tab
+        results_tab = ttk.Frame(parent_notebook)
+        parent_notebook.add(results_tab, text="Results")
+
+        # Export buttons at top
+        export_frame = ttk.LabelFrame(results_tab, text="Export Results", padding=10)
+        export_frame.pack(fill='x', padx=10, pady=5)
+
         self.export_stats_btn = ttk.Button(export_frame, text="Export Statistics (.xlxs)",
                                           command=self.export_statistics, state='disabled')
         self.export_stats_btn.pack(side='left', padx=5)
-        
+
         self.export_plots_btn = ttk.Button(export_frame, text="Export Plots (.png)",
                                           command=self.export_plots, state='disabled')
         self.export_plots_btn.pack(side='left', padx=5)
-        
+
         # Results notebook
-        results_frame = ttk.LabelFrame(self, text="3. Results", padding=5)
+        results_frame = ttk.LabelFrame(results_tab, text="Analysis Results", padding=5)
         results_frame.pack(fill='both', expand=True, padx=10, pady=5)
-        
-        # It was needed to create a canvas with scrollbar for results to prevent expanding too much
+
         results_container = ttk.Frame(results_frame)
         results_container.pack(fill='both', expand=True)
-        
+
         self.notebook = ttk.Notebook(results_container)
         self.notebook.pack(fill='both', expand=True)
-        
+
         # Tab 1: Statistics
         self.stats_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.stats_frame, text="Statistics")
-        
+
         self.stats_text = scrolledtext.ScrolledText(self.stats_frame, wrap=tk.WORD, font=('Courier', 14))
         self.stats_text.pack(fill='both', expand=True, padx=5, pady=5)
-        
+
         # Tab 2: Main Effects
         main_effects_container = ttk.Frame(self.notebook)
         self.notebook.add(main_effects_container, text="Main Effects")
-        
-        # Tooltip button for main effects
+
         me_header = ttk.Frame(main_effects_container)
         me_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(me_header, text="Main Effects Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
         ttk.Button(me_header, text="ℹ️ How to Read", width=15,
                   command=lambda: self.show_tooltip("main_effects")).pack(side='right', padx=5)
-        
-        # Scrollable frame for main effects plot
+
         self.main_effects_frame = self.create_scrollable_frame(main_effects_container)
-        
+
         # Tab 3: Interactions
         interactions_container = ttk.Frame(self.notebook)
         self.notebook.add(interactions_container, text="Interactions")
-        
-        # Tooltip button for interactions
+
         int_header = ttk.Frame(interactions_container)
         int_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(int_header, text="Interaction Effects Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
         ttk.Button(int_header, text="ℹ️ How to Read", width=15,
                   command=lambda: self.show_tooltip("interactions")).pack(side='right', padx=5)
-        
-        # Scrollable frame for interactions plot
+
         self.interactions_frame = self.create_scrollable_frame(interactions_container)
-        
+
         # Tab 4: Residuals
         residuals_container = ttk.Frame(self.notebook)
         self.notebook.add(residuals_container, text="Residuals")
-        
-        # Tooltip button for residuals
+
         res_header = ttk.Frame(residuals_container)
         res_header.pack(fill='x', padx=5, pady=2)
         ttk.Label(res_header, text="Residuals Diagnostic Plot", font=('TkDefaultFont', 10, 'bold')).pack(side='left')
         ttk.Button(res_header, text="ℹ️ How to Read", width=15,
                   command=lambda: self.show_tooltip("residuals")).pack(side='right', padx=5)
-        
-        # Scrollable frame for residuals plot
+
         self.residuals_frame = self.create_scrollable_frame(residuals_container)
-        
+
         # Tab 5: Recommendations
         self.recommendations_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.recommendations_frame, text="Recommendations")
 
-        # Add button frame at top for BO batch export
         if AX_AVAILABLE:
             button_frame = ttk.Frame(self.recommendations_frame)
             button_frame.pack(fill='x', padx=5, pady=5)
@@ -233,19 +247,17 @@ class AnalysisTab(ttk.Frame):
         self.recommendations_text = scrolledtext.ScrolledText(self.recommendations_frame,
                                                              wrap=tk.WORD, font=('Courier', 14))
         self.recommendations_text.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        # Tab 6: Optimization Details (Bayesian Optimization plot)
+
+        # Tab 6: Optimization Details
         if AX_AVAILABLE:
             optimization_container = ttk.Frame(self.notebook)
             self.notebook.add(optimization_container, text="Optimization Details")
 
-            # Tooltip button for optimization and export button
             opt_header = ttk.Frame(optimization_container)
             opt_header.pack(fill='x', padx=5, pady=2)
             ttk.Label(opt_header, text="Bayesian Optimization Analysis",
                      font=('TkDefaultFont', 10, 'bold')).pack(side='left')
 
-            # Export BO Plots button
             self.export_bo_plots_button = ttk.Button(opt_header, text="📊 Export BO Plots",
                                                      command=self.export_bo_plots_gui, state='disabled')
             self.export_bo_plots_button.pack(side='right', padx=5)
@@ -253,7 +265,6 @@ class AnalysisTab(ttk.Frame):
             ttk.Button(opt_header, text="ℹ️ How to Read", width=15,
                       command=lambda: self.show_tooltip("optimization")).pack(side='right', padx=5)
 
-            # Scrollable frame for optimization plot
             self.optimization_frame = self.create_scrollable_frame(optimization_container)
     
     def create_scrollable_frame(self, parent):
@@ -430,49 +441,124 @@ class AnalysisTab(ttk.Frame):
             
             try:
                 self.handler.load_excel(filepath)
-                
-                # Check if "Response" column exists
-                if 'Response' not in self.handler.data.columns:
-                    messagebox.showerror("Missing Response Column",
-                                       "Excel file must have a column named 'Response'\n\n"
-                                       "Please rename your response column to 'Response' and try again.")
-                    self.status_var.set("Error: No 'Response' column found")
+
+                # Get potential response columns (numeric columns excluding metadata)
+                potential_responses = self.handler.get_potential_response_columns()
+
+                if not potential_responses:
+                    messagebox.showerror("No Response Columns Found",
+                                       "Excel file must have at least one numeric column\n"
+                                       "that can be used as a response variable.\n\n"
+                                       "Numeric columns are needed for optimization.")
+                    self.status_var.set("Error: No numeric columns found")
                     return
-                
-                # Enable analyze button
-                self.analyze_btn.config(state='normal')
-                
+
+                # Populate response selection UI
+                self._populate_response_selection(potential_responses)
+
+                self.status_var.set(f"Loaded: {len(potential_responses)} potential response(s) found")
+
             except Exception as e:
                 messagebox.showerror("File Load Failed",
                     f"Could not open the selected Excel file.\n\n"
                     f"Details: {str(e)}\n\n"
                     f"Make sure the file is not open in another program.")
                 self.status_var.set("Error loading file")
-    
+
+    def _populate_response_selection(self, potential_responses):
+        """Create checkboxes for response selection with maximize/minimize options"""
+        # Clear existing widgets in response frame
+        for widget in self.response_frame.winfo_children():
+            widget.destroy()
+
+        # Reset tracking
+        self.response_checkboxes = {}
+        self.selected_responses = []
+        self.response_directions = {}
+
+        # Header
+        header_label = ttk.Label(self.response_frame,
+                                text="Select response variable(s) to optimize:",
+                                font=('TkDefaultFont', 9, 'bold'))
+        header_label.grid(row=0, column=0, columnspan=3, sticky='w', padx=5, pady=5)
+
+        # Create checkbox for each potential response
+        for idx, col_name in enumerate(potential_responses):
+            # Checkbox
+            var = tk.BooleanVar(value=False)
+
+            # Auto-select if column name contains "response" (case-insensitive)
+            if 'response' in col_name.lower():
+                var.set(True)
+
+            checkbox = ttk.Checkbutton(self.response_frame, text=col_name, variable=var,
+                                      command=self._update_selected_responses)
+            checkbox.grid(row=idx+1, column=0, sticky='w', padx=20, pady=2)
+
+            # Direction dropdown (Maximize/Minimize)
+            direction_var = tk.StringVar(value='Maximize')
+            direction_combo = ttk.Combobox(self.response_frame, textvariable=direction_var,
+                                          values=['Maximize', 'Minimize'],
+                                          state='readonly', width=10)
+            direction_combo.grid(row=idx+1, column=1, padx=10, pady=2)
+
+            # Store references
+            self.response_checkboxes[col_name] = (var, direction_var)
+
+        # Note label
+        note_label = ttk.Label(self.response_frame,
+                              text="Note: At least one response must be selected to proceed",
+                              font=('TkDefaultFont', 8, 'italic'))
+        note_label.grid(row=len(potential_responses)+1, column=0, columnspan=3,
+                       sticky='w', padx=5, pady=5)
+
+        # Initial update
+        self._update_selected_responses()
+
+    def _update_selected_responses(self):
+        """Update selected responses list and enable/disable analyze button"""
+        self.selected_responses = []
+        self.response_directions = {}
+
+        for col_name, (var, direction_var) in self.response_checkboxes.items():
+            if var.get():
+                self.selected_responses.append(col_name)
+                direction = 'minimize' if direction_var.get() == 'Minimize' else 'maximize'
+                self.response_directions[col_name] = direction
+
+        # Enable analyze button only if at least one response selected
+        if self.selected_responses:
+            self.analyze_btn.config(state='normal')
+            self.status_var.set(f"Ready to analyze {len(self.selected_responses)} response(s)")
+        else:
+            self.analyze_btn.config(state='disabled')
+            self.status_var.set("Please select at least one response variable")
+
     def analyze_data(self):
         """Perform DoE analysis"""
         if not self.filepath:
             messagebox.showwarning("Warning", "Please select a data file first.")
             return
-        
+
+        if not self.selected_responses:
+            messagebox.showwarning("Warning", "Please select at least one response variable.")
+            return
+
         self.status_var.set("Analyzing...")
         self.update()
-        
-        try:
-            # Always use "Response" column in the xlxs file
-            response_col = "Response"
 
+        try:
             # Detect which columns are factors vs response
-            self.handler.detect_columns(response_col)
+            self.handler.detect_columns(response_columns=self.selected_responses)
             clean_data = self.handler.preprocess_data()
 
-            # Pass cleaned data to analyzer
+            # Pass cleaned data to analyzer with all selected responses
             self.analyzer.set_data(
                 data=clean_data,
                 factor_columns=self.handler.factor_columns,
                 categorical_factors=self.handler.categorical_factors,
                 numeric_factors=self.handler.numeric_factors,
-                response_column=self.handler.response_column
+                response_columns=self.selected_responses
             )
 
             # Get user's model selection
@@ -490,34 +576,88 @@ class AnalysisTab(ttk.Frame):
 
             selected_model = model_mapping[selected_option]
 
-            # Always compare all models for reference
-            self.status_var.set("Comparing all models...")
-            self.update()
+            # Multi-response analysis: analyze each response separately
+            if len(self.selected_responses) > 1:
+                self.status_var.set(f"Analyzing {len(self.selected_responses)} responses...")
+                self.update()
 
-            self.model_comparison = self.analyzer.compare_all_models()
+                # Compare all models for all responses (this fits all models)
+                self.model_comparison_all = self.analyzer.compare_all_models_all_responses()
 
-            # Determine which model to use
-            if selected_model is None:
-                # AUTO MODE - select best model
-                self.model_selection = self.analyzer.select_best_model(self.model_comparison)
-                chosen_model = self.model_selection['recommended_model']
+                # Select best model and fit for each response
+                self.model_selection_all = {}
+                self.chosen_models = {}
+                self.all_results = {}
+                self.all_main_effects = {}
 
-                if chosen_model is None:
-                    raise ValueError("No models could be fitted successfully. Check your data.")
+                for response_name in self.selected_responses:
+                    comparison_data = self.model_comparison_all[response_name]
 
-                mode_description = "Auto-selected"
+                    # Determine which model to use for this response
+                    if selected_model is None:
+                        # AUTO MODE - select best model for each response
+                        model_sel = self.analyzer.select_best_model(comparison_data)
+                        chosen = model_sel['recommended_model']
+
+                        if chosen is None:
+                            raise ValueError(f"No models could be fitted for {response_name}. Check your data.")
+
+                        self.model_selection_all[response_name] = model_sel
+                        self.chosen_models[response_name] = chosen
+                    else:
+                        # MANUAL MODE - use same model for all responses
+                        chosen = selected_model
+                        self.model_selection_all[response_name] = {
+                            'recommended_model': chosen,
+                            'reason': 'User selected'
+                        }
+                        self.chosen_models[response_name] = chosen
+
+                    # Re-fit the chosen model for detailed analysis (same as single-response flow)
+                    self.status_var.set(f"Fitting {response_name} with {chosen} model...")
+                    self.update()
+
+                    self.all_results[response_name] = self.analyzer.fit_model(chosen, response_name=response_name)
+                    self.all_main_effects[response_name] = self.analyzer.calculate_main_effects(response_name=response_name)
+
+                # For backward compatibility, use first response as primary
+                self.model_comparison = self.model_comparison_all[self.selected_responses[0]]
+                self.model_selection = self.model_selection_all[self.selected_responses[0]]
+                chosen_model = self.chosen_models[self.selected_responses[0]]
+                self.results = self.all_results[self.selected_responses[0]]
+                self.main_effects = self.all_main_effects[self.selected_responses[0]]
+
+                mode_description = "Auto-selected" if selected_model is None else "User selected"
+
             else:
-                # MANUAL MODE - use user's choice
-                chosen_model = selected_model
-                self.model_selection = {'recommended_model': chosen_model, 'reason': 'User selected'}
-                mode_description = "User selected"
+                # Single response analysis (backward compatible)
+                self.status_var.set("Comparing all models...")
+                self.update()
 
-            self.status_var.set(f"Using {mode_description.lower()} model: {chosen_model}...")
-            self.update()
+                self.model_comparison = self.analyzer.compare_all_models()
 
-            # Fit the chosen model for detailed analysis
-            self.results = self.analyzer.fit_model(chosen_model)
-            self.main_effects = self.analyzer.calculate_main_effects()
+                # Determine which model to use
+                if selected_model is None:
+                    # AUTO MODE - select best model
+                    self.model_selection = self.analyzer.select_best_model(self.model_comparison)
+                    chosen_model = self.model_selection['recommended_model']
+
+                    if chosen_model is None:
+                        raise ValueError("No models could be fitted successfully. Check your data.")
+
+                    mode_description = "Auto-selected"
+                else:
+                    # MANUAL MODE - use user's choice
+                    chosen_model = selected_model
+                    self.model_selection = {'recommended_model': chosen_model, 'reason': 'User selected'}
+                    mode_description = "User selected"
+
+                self.status_var.set(f"Using {mode_description.lower()} model: {chosen_model}...")
+                self.update()
+
+                # Fit the chosen model for detailed analysis
+                self.results = self.analyzer.fit_model(chosen_model)
+                self.main_effects = self.analyzer.calculate_main_effects()
 
             self.display_statistics()
             self.display_plots()
@@ -532,25 +672,171 @@ class AnalysisTab(ttk.Frame):
 
             # Show completion status
             chosen_model_name = self.analyzer.MODEL_TYPES[chosen_model]
-            self.status_var.set(f"Analysis complete! Model: {chosen_model_name} | R² = {self.results['model_stats']['R-squared']:.4f}")
 
-            messagebox.showinfo("Success",
-                              f"Analysis completed successfully!\n\n"
-                              f"{mode_description} Model: {chosen_model_name}\n"
-                              f"Observations: {self.results['model_stats']['Observations']}\n"
-                              f"R-squared: {self.results['model_stats']['R-squared']:.4f}\n"
-                              f"Adjusted R-squared: {self.results['model_stats']['Adjusted R-squared']:.4f}\n\n"
-                              f"All models compared. See Statistics tab for details.")
+            if len(self.selected_responses) > 1:
+                # Multi-response completion message
+                avg_r2 = sum(r['model_stats']['R-squared'] for r in self.all_results.values()) / len(self.all_results)
+                self.status_var.set(f"Analysis complete! {len(self.selected_responses)} responses analyzed | Avg R² = {avg_r2:.4f}")
+
+                messagebox.showinfo("Success",
+                                  f"Multi-response analysis completed successfully!\n\n"
+                                  f"Responses analyzed: {len(self.selected_responses)}\n"
+                                  f"Average R-squared: {avg_r2:.4f}\n"
+                                  f"Observations: {self.results['model_stats']['Observations']}\n\n"
+                                  f"Check the Results tab for detailed analysis of each response.")
+            else:
+                # Single response completion message
+                self.status_var.set(f"Analysis complete! Model: {chosen_model_name} | R² = {self.results['model_stats']['R-squared']:.4f}")
+
+                messagebox.showinfo("Success",
+                                  f"Analysis completed successfully!\n\n"
+                                  f"{mode_description} Model: {chosen_model_name}\n"
+                                  f"Observations: {self.results['model_stats']['Observations']}\n"
+                                  f"R-squared: {self.results['model_stats']['R-squared']:.4f}\n"
+                                  f"Adjusted R-squared: {self.results['model_stats']['Adjusted R-squared']:.4f}\n\n"
+                                  f"Check the Results tab for detailed analysis.")
 
         except Exception as e:
+            import traceback
+            print(f"\n{'='*60}")
+            print(f"❌ ANALYSIS ERROR")
+            print(f"{'='*60}")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            print(f"Selected responses: {self.selected_responses}")
+            print(f"{'='*60}")
+            traceback.print_exc()
+            print(f"{'='*60}\n")
+
             messagebox.showerror("Analysis Failed",
                 f"Statistical analysis could not be completed.\n\n"
                 f"Error: {str(e)}\n\n"
                 f"Check that your data includes all required columns and valid numeric values.")
             self.status_var.set("Analysis failed")
-            import traceback
-            traceback.print_exc()
     
+    def _display_single_response_statistics(self, results, model_comparison, model_selection, response_name):
+        """Display statistics for a single response (helper for multi-response display)"""
+        # MODEL COMPARISON SECTION
+        if model_comparison:
+            self.stats_text.insert(tk.END, "📊 MODEL COMPARISON\n")
+            self.stats_text.insert(tk.END, "-"*80 + "\n\n")
+
+            comparison_table = model_comparison['comparison_table']
+
+            if comparison_table is not None and not comparison_table.empty:
+                self.stats_text.insert(tk.END, "Model Comparison (all 5 models fitted):\n\n")
+
+                header = f"{'Model':<30} {'Adj R²':>10} {'BIC':>10} {'RMSE':>10} {'DF':>6}  {'Selected':>10}\n"
+                self.stats_text.insert(tk.END, header)
+                self.stats_text.insert(tk.END, "-"*80 + "\n")
+
+                recommended_model = model_selection['recommended_model']
+                is_auto = self.model_selection_var.get() == 'Auto (Recommended)'
+
+                model_order = ['mean', 'linear', 'interactions', 'quadratic', 'reduced']
+                for model_type in model_order:
+                    if model_type in model_comparison['models']:
+                        stats = model_comparison['models'][model_type]
+                        model_name = stats['Model Type']
+
+                        marker = ("✓ AUTO" if is_auto else "✓ USER") if model_type == recommended_model else ""
+
+                        line = (f"{model_name:<30} "
+                               f"{stats['Adj R²']:>10.4f} "
+                               f"{stats['BIC']:>10.1f} "
+                               f"{stats['RMSE']:>10.4f} "
+                               f"{stats['DF Model']:>6} "
+                               f"{marker:>10}\n")
+                        self.stats_text.insert(tk.END, line)
+
+                self.stats_text.insert(tk.END, "\n" + "-"*80 + "\n")
+                self.stats_text.insert(tk.END, f"🎯 RECOMMENDED: {self.analyzer.MODEL_TYPES[recommended_model]}\n")
+                self.stats_text.insert(tk.END, f"   Reason: {model_selection['reason']}\n")
+
+                self.stats_text.insert(tk.END, "\n💡 Selection criteria: Adjusted R² (60%), BIC (30%), Parsimony (10%)\n")
+                self.stats_text.insert(tk.END, "   Higher Adj R² is better | Lower BIC is better | Simpler models preferred\n")
+
+            self.stats_text.insert(tk.END, "\n" + "="*80 + "\n\n")
+
+        # RED FLAGS / WARNINGS
+        r_squared = results['model_stats']['R-squared']
+        n_obs = results['model_stats']['Observations']
+
+        # Get significant factors for this response
+        sig_factors = []
+        for idx in results['coefficients'].index:
+            if idx != 'Intercept' and results['coefficients'].loc[idx, 'p-value'] < 0.05:
+                sig_factors.append(idx)
+
+        warnings = []
+        if r_squared < 0.5:
+            warnings.append(f"⚠️  LOW R² ({r_squared:.3f}): Model explains only {r_squared*100:.1f}% of variance")
+        elif r_squared < 0.7:
+            warnings.append(f"⚠️  MODERATE R² ({r_squared:.3f}): Model is acceptable but could be improved")
+
+        if len(sig_factors) == 0:
+            warnings.append("⚠️  NO SIGNIFICANT FACTORS: No factors with p < 0.05 found")
+
+        if n_obs < 20:
+            warnings.append(f"⚠️  SMALL SAMPLE SIZE: Only {n_obs} observations")
+
+        if warnings:
+            self.stats_text.insert(tk.END, "🚩 RED FLAGS / WARNINGS\n")
+            self.stats_text.insert(tk.END, "-"*80 + "\n")
+            for warning in warnings:
+                self.stats_text.insert(tk.END, f"{warning}\n")
+            self.stats_text.insert(tk.END, "\n" + "="*80 + "\n\n")
+
+        # MODEL STATISTICS
+        self.stats_text.insert(tk.END, "MODEL STATISTICS\n")
+        self.stats_text.insert(tk.END, "-"*80 + "\n")
+        for key, value in results['model_stats'].items():
+            if isinstance(value, float):
+                self.stats_text.insert(tk.END, f"  {key:<25}: {value:>15.6f}\n")
+            else:
+                self.stats_text.insert(tk.END, f"  {key:<25}: {value:>15}\n")
+
+        self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+        self.stats_text.insert(tk.END, "COEFFICIENTS\n")
+        self.stats_text.insert(tk.END, "-"*80 + "\n\n")
+
+        coef_str = results['coefficients'].to_string()
+        self.stats_text.insert(tk.END, coef_str + "\n")
+
+        # SIGNIFICANT FACTORS
+        self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+        self.stats_text.insert(tk.END, f"SIGNIFICANT FACTORS (p < 0.05): {len(sig_factors)} found\n")
+        self.stats_text.insert(tk.END, "-"*80 + "\n")
+
+        if sig_factors:
+            factor_importance = []
+            for factor in sig_factors:
+                coef = results['coefficients'].loc[factor, 'Coefficient']
+                pval = results['coefficients'].loc[factor, 'p-value']
+                factor_importance.append((factor, abs(coef), coef, pval))
+
+            factor_importance.sort(key=lambda x: x[1], reverse=True)
+
+            self.stats_text.insert(tk.END, "Ranked by effect size (most important first):\n\n")
+            for rank, (factor, abs_coef, coef, pval) in enumerate(factor_importance, 1):
+                self.stats_text.insert(tk.END, f"  {rank}. {factor:<38} coef={coef:>10.4f}  p={pval:.2e}\n")
+        else:
+            self.stats_text.insert(tk.END, "  None found - no factors are statistically significant.\n")
+
+        # INTERACTIONS
+        interaction_factors = [f for f in sig_factors if ':' in f]
+        if interaction_factors:
+            self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+            self.stats_text.insert(tk.END, f"⚡ SIGNIFICANT INTERACTIONS DETECTED: {len(interaction_factors)}\n")
+            self.stats_text.insert(tk.END, "-"*80 + "\n")
+            for interaction in interaction_factors:
+                coef = results['coefficients'].loc[interaction, 'Coefficient']
+                pval = results['coefficients'].loc[interaction, 'p-value']
+                self.stats_text.insert(tk.END, f"  {interaction:<40} coef={coef:>10.4f}  p={pval:.2e}\n")
+            self.stats_text.insert(tk.END, "\n⚠️  Interactions mean optimal settings depend on factor combinations!\n")
+
+        self.stats_text.insert(tk.END, "\n" + "="*80 + "\n")
+
     def display_statistics(self):
         """Display statistical results with recommendations and warnings"""
         self.stats_text.delete('1.0', tk.END)
@@ -558,6 +844,28 @@ class AnalysisTab(ttk.Frame):
         self.stats_text.insert(tk.END, "="*80 + "\n")
         self.stats_text.insert(tk.END, "DOE ANALYSIS RESULTS\n")
         self.stats_text.insert(tk.END, "="*80 + "\n\n")
+
+        # Multi-response analysis: display results for each response
+        if hasattr(self, 'all_results') and len(self.all_results) > 1:
+            self.stats_text.insert(tk.END, f"🔬 MULTI-RESPONSE ANALYSIS ({len(self.all_results)} responses selected)\n")
+            self.stats_text.insert(tk.END, "="*80 + "\n\n")
+
+            for response_idx, response_name in enumerate(self.selected_responses, 1):
+                self.stats_text.insert(tk.END, f"\n{'█'*80}\n")
+                self.stats_text.insert(tk.END, f"RESPONSE {response_idx}/{len(self.selected_responses)}: {response_name}\n")
+                self.stats_text.insert(tk.END, f"{'█'*80}\n\n")
+
+                # Display statistics for this response
+                self._display_single_response_statistics(
+                    results=self.all_results[response_name],
+                    model_comparison=self.model_comparison_all[response_name],
+                    model_selection=self.model_selection_all[response_name],
+                    response_name=response_name
+                )
+
+            return
+
+        # Single response (backward compatible)
 
         # MODEL COMPARISON SECTION - Show all models and selection
         if hasattr(self, 'model_comparison') and self.model_comparison:
@@ -822,9 +1130,10 @@ class AnalysisTab(ttk.Frame):
         self.recommendations_text.insert(tk.END, "-"*80 + "\n")
         
         if len(sig_factors) > 0:
-            # Get only main effect factors (not interactions)
-            main_sig_factors = [f for f in sig_factors if ':' not in f]
-            
+            # Get only main effect factors (not interactions or quadratic terms)
+            main_sig_factors = [f for f in sig_factors
+                               if ':' not in f and 'I(' not in f and '**' not in f]
+
             if main_sig_factors:
                 self.recommendations_text.insert(tk.END, "To INCREASE response, adjust these significant factors:\n\n")
                 for factor in main_sig_factors:
@@ -840,9 +1149,15 @@ class AnalysisTab(ttk.Frame):
                     self.recommendations_text.insert(tk.END, f"  • {clean_factor:<30}: {direction}  (effect: {coef:+.4f})\n")
             
             interaction_factors = [f for f in sig_factors if ':' in f]
+            quadratic_factors = [f for f in sig_factors if 'I(' in f or '**' in f]
+
             if interaction_factors:
                 self.recommendations_text.insert(tk.END, f"\nWARNING: {len(interaction_factors)} interaction(s) detected!\n")
                 self.recommendations_text.insert(tk.END, "Optimal levels depend on factor combinations - see Interactions plot.\n")
+
+            if quadratic_factors:
+                self.recommendations_text.insert(tk.END, f"\nNOTE: {len(quadratic_factors)} quadratic term(s) detected!\n")
+                self.recommendations_text.insert(tk.END, "Response has curvature - optimal values may be within the tested range.\n")
         else:
             self.recommendations_text.insert(tk.END, "No significant factors found. Consider:\n")
             self.recommendations_text.insert(tk.END, "  • Testing wider factor ranges\n")
@@ -884,15 +1199,16 @@ class AnalysisTab(ttk.Frame):
             self.recommendations_text.insert(tk.END, "Intelligently suggested next experiments (balancing exploration & exploitation):\n\n")
             
             try:
-                # Initialize optimizer with current data
+                # Initialize optimizer with current data (multi-response support)
                 self.optimizer.set_data(
                     data=self.handler.clean_data,
                     factor_columns=self.handler.factor_columns,
                     categorical_factors=self.handler.categorical_factors,
                     numeric_factors=self.handler.numeric_factors,
-                    response_column=self.handler.response_column
+                    response_columns=self.selected_responses,  # Pass all selected responses
+                    response_directions=self.response_directions  # Pass optimization directions
                 )
-                self.optimizer.initialize_optimizer(minimize=False)  # Assume maximize response
+                self.optimizer.initialize_optimizer()  # Uses response_directions internally
                 
                 # Get suggestions
                 suggestions = self.optimizer.get_next_suggestions(n=5)
@@ -905,8 +1221,39 @@ class AnalysisTab(ttk.Frame):
                         else:
                             self.recommendations_text.insert(tk.END, f"  • {factor:<30}: {value}\n")
                     self.recommendations_text.insert(tk.END, "\n")
-                
-                self.recommendations_text.insert(tk.END, 
+
+                # Add Pareto frontier analysis for multi-objective
+                if self.optimizer.is_multi_objective:
+                    pareto_points = self.optimizer.get_pareto_frontier()
+                    if pareto_points and len(pareto_points) > 0:
+                        self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
+                        self.recommendations_text.insert(tk.END, "PARETO FRONTIER ANALYSIS (Multi-Objective Trade-offs)\n")
+                        self.recommendations_text.insert(tk.END, "="*80 + "\n\n")
+
+                        self.recommendations_text.insert(tk.END,
+                            f"Found {len(pareto_points)} Pareto-optimal solutions (best trade-offs):\n\n")
+
+                        # Show first 5 Pareto points
+                        for i, point in enumerate(pareto_points[:5], 1):
+                            self.recommendations_text.insert(tk.END, f"Pareto Point #{i}:\n")
+                            self.recommendations_text.insert(tk.END, "  Objectives:\n")
+                            for resp, value in point['objectives'].items():
+                                direction = self.response_directions[resp]
+                                arrow = '↑' if direction == 'maximize' else '↓'
+                                self.recommendations_text.insert(tk.END, f"    {arrow} {resp:<25}: {value:.4f}\n")
+                            self.recommendations_text.insert(tk.END, "\n")
+
+                        if len(pareto_points) > 5:
+                            self.recommendations_text.insert(tk.END,
+                                f"  ... and {len(pareto_points) - 5} more Pareto-optimal points\n\n")
+
+                        self.recommendations_text.insert(tk.END,
+                            "💡 TRADE-OFF INSIGHT:\n"
+                            "   No single solution is best for ALL objectives.\n"
+                            "   Choose a Pareto point based on your priorities.\n"
+                            "   View 'Optimization Details' tab for Pareto frontier visualization.\n\n")
+
+                self.recommendations_text.insert(tk.END,
                     "💡 TIP: These suggestions use machine learning to predict where to test next.\n"
                     "   View 'Optimization Details' tab for visualization of predicted response surface.\n"
                 )
@@ -931,17 +1278,50 @@ class AnalysisTab(ttk.Frame):
             self.recommendations_text.insert(tk.END, "\n" + "="*80 + "\n")
     
     def display_optimization_plot(self):
-        """Display Bayesian Optimization predicted response surface"""
+        """Display Bayesian Optimization predicted response surface or Pareto frontier"""
         if not AX_AVAILABLE or not self.optimizer:
             return
-        
+
         for widget in self.optimization_frame.winfo_children():
             widget.destroy()
-        
+
         try:
+            # Multi-objective: Show Pareto frontier
+            if self.optimizer.is_multi_objective:
+                fig = self.optimizer.plot_pareto_frontier()
+
+                if fig is None:
+                    message_label = ttk.Label(
+                        self.optimization_frame,
+                        text="Pareto frontier plot requires 2-3 objectives.\n"
+                             f"Your selection has {len(self.selected_responses)} responses.",
+                        font=('TkDefaultFont', 12),
+                        justify='center'
+                    )
+                    message_label.pack(expand=True)
+                    return
+
+                canvas = FigureCanvasTkAgg(fig, master=self.optimization_frame)
+                canvas.draw()
+                canvas_widget = canvas.get_tk_widget()
+                canvas_widget.pack(fill='both', expand=True)
+
+                # Bind mousewheel
+                if hasattr(self.optimization_frame, '_bind_mousewheel'):
+                    self.optimization_frame._bind_mousewheel(canvas_widget)
+
+                # Reset scroll position to top
+                if hasattr(self.optimization_frame, '_scroll_canvas'):
+                    self.optimization_frame._scroll_canvas.update_idletasks()
+                    self.optimization_frame._scroll_canvas.yview_moveto(0)
+
+                plt.close(fig)
+                return
+
+            # Single-objective: Show acquisition plot (original behavior)
             # Check if we have enough numeric factors
             num_numeric = len(self.handler.numeric_factors)
-            
+
             if num_numeric < 2:
                 # Show message if plot can't be generated
                 message_label = ttk.Label(
@@ -954,9 +1334,9 @@ class AnalysisTab(ttk.Frame):
                 )
                 message_label.pack(expand=True)
                 return
-            
+
             fig = self.optimizer.get_acquisition_plot()
-            
+
             if fig is None:
                 # Show message if plot generation failed
                 message_label = ttk.Label(
@@ -968,7 +1348,7 @@ class AnalysisTab(ttk.Frame):
                 )
                 message_label.pack(expand=True)
                 return
-            
+
             canvas = FigureCanvasTkAgg(fig, master=self.optimization_frame)
             canvas.draw()
             canvas_widget = canvas.get_tk_widget()
@@ -984,8 +1364,18 @@ class AnalysisTab(ttk.Frame):
                 self.optimization_frame._scroll_canvas.yview_moveto(0)
             
             plt.close(fig)
-            
+
         except Exception as e:
+            print(f"\n{'='*60}")
+            print(f"❌ DISPLAY OPTIMIZATION PLOT ERROR")
+            print(f"{'='*60}")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            print(f"{'='*60}")
+            import traceback
+            traceback.print_exc()
+            print(f"{'='*60}\n")
+
             error_label = ttk.Label(
                 self.optimization_frame,
                 text=f"Could not generate optimization plot:\n{str(e)}\n\n"
