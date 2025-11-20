@@ -20,7 +20,7 @@ except ImportError:
     AX_AVAILABLE = False
 
 # Debug flag for Pareto frontier calculations
-DEBUG = False
+DEBUG = True
 
 
 class BayesianOptimizer:
@@ -315,6 +315,8 @@ class BayesianOptimizer:
         # Add existing data as completed trials using sanitized names
         if self.DEBUG:
             print(f"\n[DEBUG INIT] Adding {len(self.data)} existing trials to Ax...")
+            print(f"  Available columns: {list(self.data.columns)}")
+            print(f"  Looking for ID column...")
         for idx, row in self.data.iterrows():
             params = {}
             for factor in self.factor_columns:
@@ -334,7 +336,21 @@ class BayesianOptimizer:
             _, trial_index = self.ax_client.attach_trial(parameters=params)
 
             # Store metadata for this trial
-            exp_id = row.get('ID', None) if 'ID' in row.index else None
+            # Try multiple possible ID column names (case-insensitive)
+            exp_id = None
+            id_col_found = None
+            for id_col in ['ID', 'Id', 'id', 'Exp ID', 'Exp_ID', 'ExpID']:
+                if id_col in row.index:
+                    exp_id = row.get(id_col)
+                    id_col_found = id_col
+                    break
+
+            # If no ID column found, use the pandas index
+            if exp_id is None:
+                exp_id = idx
+                if self.DEBUG and idx == 0:
+                    print(f"  ⚠️  No ID column found, using pandas index as ID")
+
             metadata = {
                 'row_index': idx,
                 'id': exp_id,
@@ -343,7 +359,10 @@ class BayesianOptimizer:
             self.trial_metadata[trial_index] = metadata
 
             if self.DEBUG and idx < 3:  # Show first 3 for debugging
-                print(f"  Trial {trial_index}: ID={exp_id}, row_index={idx}")
+                if id_col_found:
+                    print(f"  Trial {trial_index}: ID={exp_id} (from column '{id_col_found}'), row_index={idx}")
+                else:
+                    print(f"  Trial {trial_index}: ID={exp_id} (from pandas index), row_index={idx}")
 
             # Build raw_data dict for all responses
             if self.is_multi_objective:
