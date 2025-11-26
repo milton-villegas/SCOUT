@@ -422,15 +422,15 @@ def run(protocol: protocol_api.ProtocolContext):
     protocol.comment("LOADING PIPETTES")
 
     # Single channel
-    p300 = protocol.load_instrument(
-        'p300_single',
+    p50 = protocol.load_instrument(
+        'p50_single',
         mount='right',
         tip_racks=[tiprack_sc_1]
     )
     # Set clearance heights to avoid hitting bottom/top
-    p300.well_bottom_clearance.aspirate = ASP_CLEAR
-    p300.well_bottom_clearance.dispense = DISP_CLEAR
-    protocol.comment("  Right mount: P300 Single")
+    p50.well_bottom_clearance.aspirate = ASP_CLEAR
+    p50.well_bottom_clearance.dispense = DISP_CLEAR
+    protocol.comment("  Right mount: P50 Single (GEN1)")
 
     # Multichannel
     m300 = protocol.load_instrument(
@@ -515,8 +515,8 @@ def run(protocol: protocol_api.ProtocolContext):
         profile = get_reagent_profile(reagent)
 
         # Set flow rates based on viscosity
-        p300.flow_rate.aspirate = profile['asp_rate']
-        p300.flow_rate.dispense = profile['disp_rate']
+        p50.flow_rate.aspirate = profile['asp_rate']
+        p50.flow_rate.dispense = profile['disp_rate']
 
         protocol.comment(f"  Source: {source_well}")
         if profile != DEFAULT_RATES:
@@ -527,12 +527,12 @@ def run(protocol: protocol_api.ProtocolContext):
             protocol.comment(f"  Air gap: {profile['air_gap']} µL")
 
         # Pick up tip
-        p300.pick_up_tip()
+        p50.pick_up_tip()
 
         # Prime tip to remove air bubbles and ensure accurate dispensing
-        p300.aspirate(PRIME_VOL, source)
-        p300.dispense(PRIME_VOL, source.top())
-        p300.blow_out(source.top())
+        p50.aspirate(PRIME_VOL, source)
+        p50.dispense(PRIME_VOL, source.top())
+        p50.blow_out(source.top())
 
         # Dispense reagent to all wells that need it
         dispense_count = 0
@@ -547,29 +547,41 @@ def run(protocol: protocol_api.ProtocolContext):
             dest_plate = well_data['plate']
             dest_well = dest_plate[well_data['well-index']]
 
-            # Aspirate from reservoir
-            p300.aspirate(vol, source)
+            # Handle volumes larger than pipette capacity (50 µL for P50)
+            # Split into multiple transfers if needed
+            MAX_PIPETTE_VOL = 50.0
+            remaining_vol = vol
 
-            # Add air gap if needed (for viscous reagents)
-            if profile['air_gap'] > 0:
-                p300.air_gap(profile['air_gap'])
+            while remaining_vol > 0:
+                # Determine transfer volume for this cycle
+                transfer_vol = min(remaining_vol, MAX_PIPETTE_VOL)
 
-            # Dispense to well (shallow, near top)
-            p300.dispense(
-                vol + profile['air_gap'],
-                dest_well.top(SHALLOW_OFFSET)
-            )
+                # Aspirate from reservoir
+                p50.aspirate(transfer_vol, source)
 
-            # Blow out to ensure complete dispensing
-            if BLOW_OUT_DEST:
-                p300.blow_out(dest_well.top())
+                # Add air gap if needed (for viscous reagents)
+                if profile['air_gap'] > 0:
+                    p50.air_gap(profile['air_gap'])
+
+                # Dispense to well (shallow, near top)
+                p50.dispense(
+                    transfer_vol + profile['air_gap'],
+                    dest_well.top(SHALLOW_OFFSET)
+                )
+
+                # Blow out to ensure complete dispensing
+                if BLOW_OUT_DEST:
+                    p50.blow_out(dest_well.top())
+
+                # Update remaining volume
+                remaining_vol -= transfer_vol
 
             dispense_count += 1
 
         protocol.comment(f"  Dispensed to {dispense_count} wells")
 
         # Drop tip
-        p300.drop_tip(home_after=False)
+        p50.drop_tip(home_after=False)
 
     protocol.comment("Buffer preparation complete!")
 
