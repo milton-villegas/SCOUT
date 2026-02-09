@@ -1,6 +1,6 @@
-# Protein Stability DoE Toolkit
+# SCOUT - Screening & Condition Optimization Utility Tool
 
-A unified application for designing, executing, and analyzing protein stability buffer screens:
+A unified application for designing, executing, and analyzing experimental screens:
 
 1. **Designer Tab** — build full‑factorial/Custom designs and export CSV/XLSX for the robot.
 2. **Opentrons Protocol** — prepares buffers in 96‑well plates and optionally transfers to a 384‑well plate.
