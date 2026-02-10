@@ -1,102 +1,25 @@
-<p align="center">
-  <img src="assets/scout_logo.png" alt="SCOUT Logo" width="150">
-</p>
+<img src="https://github.com/milton-villegas/SCOUT/blob/main/assets/scout_logo.png?raw=true" width="200">
 
-<h1 align="center">SCOUT</h1>
-<p align="center"><b>Screening & Condition Optimization Utility Tool</b></p>
+SCOUT
+=====
 
-<p align="center">
+> 🔬 Screening & Condition Optimization Utility Tool
+
 SCOUT is in active development and feedback is appreciated.
-</p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.8+-blue" alt="Python">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
-  <img src="https://img.shields.io/github/last-commit/milton-villegas/SCOUT" alt="Last Commit">
-  <img src="https://img.shields.io/github/issues/milton-villegas/SCOUT" alt="Issues">
-</p>
+Please see the [Documentation](#documentation) to get started
 
----
+![Python](https://img.shields.io/badge/python-3.8+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![GitHub last commit](https://img.shields.io/github/last-commit/milton-villegas/SCOUT)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/milton-villegas/SCOUT)
 
-<p align="center">
-A Python toolkit for <b>Design of Experiments (DoE)</b>, statistical analysis, and <b>Bayesian Optimization</b><br>
-for protein stability, buffer screening, crystallization, and formulation studies.
-</p>
+A Python toolkit for **Design of Experiments (DoE)**, statistical analysis, and **Bayesian Optimization** for protein stability, buffer screening, crystallization, and formulation studies.
 
----
+## Installation
 
-## Features
-
-- **Design of Experiments (DoE)** — Full factorial, fractional factorial, Plackett-Burman, Box-Behnken, Central Composite, Latin Hypercube, D-Optimal designs
-- **Statistical Analysis** — Linear models, interaction effects, quadratic models, ANOVA
-- **Bayesian Optimization** — Smart suggestions for next experiments using Ax-Platform
-- **Visualization** — Main effects, interaction plots, residual diagnostics, Pareto fronts
-- **Opentrons Integration** — Export CSV for automated liquid handling
-- **Cross-platform** — Windows, macOS, Linux with simple double-click launchers
-
----
-
-## Overview
-
-A unified application for designing, executing, and analyzing experimental screens:
-
-1. **Designer Tab** — build full‑factorial/Custom designs and export CSV/XLSX for the robot.
-2. **Opentrons Protocol** — prepares buffers in 96‑well plates and optionally transfers to a 384‑well plate.
-   `opentrons/protein_stability_doe.py`
-3. **Analysis Tab** — import results, run linear models, Bayesian Optimization, and plot main effects/interactions/residuals.
-
-> Tested on Python 3.8–3.11 (Windows/macOS/Linux). Opentrons API Level: **2.20**.
-
----
-
-## Repository structure
-
-```
-protein-stability-doe/
-├─ run.command                  # macOS launcher (double-click)
-├─ run.bat                      # Windows launcher (double-click)
-├─ run.sh                       # Linux launcher
-├─ main.py                      # Main application entry point
-├─ gui/
-│  ├─ main_window.py           # Main GUI window
-│  └─ tabs/
-│     ├─ designer_tab.py       # DoE Designer interface
-│     └─ analysis_tab.py       # Analysis & optimization interface
-├─ core/
-│  ├─ doe_designer.py          # Design generation logic
-│  ├─ doe_analyzer.py          # Statistical analysis
-│  ├─ optimizer.py             # Bayesian optimization
-│  ├─ data_handler.py          # Data loading/preprocessing
-│  ├─ exporter.py              # Results export
-│  ├─ plotter.py               # Visualization
-│  └─ constants.py             # Shared constants
-├─ opentrons/
-│  └─ protein_stability_doe.py # Robot protocol
-├─ tests/                       # Unit tests (pytest)
-├─ utils/                       # Shared utilities
-├─ requirements.txt             # Core dependencies
-├─ requirements-dev.txt         # Testing dependencies
-├─ setup.py                     # Package setup
-└─ .python-version              # Python version constraint
-```
-
----
-
-## Documentation
-
-📚 **Guides:**
-- **[Design Types Guide](docs/DESIGN_GUIDE.md)** - Choosing and using the 7 design types (Full Factorial, LHS, D-Optimal, Fractional Factorial, Plackett-Burman, CCD, Box-Behnken)
-- **[Well Mapping Guide](docs/WELL_MAPPING.md)** - Understanding well organization and Opentrons compatibility
-- **[Test Documentation](tests/README.md)** - Running and writing tests
-
----
-
-## Quick start
-
-### Easy Launch (Recommended)
-
-The launcher scripts automatically set up the environment and install dependencies on first run.
+Double-click the launcher to automatically set up the environment and install dependencies:
 
 | Platform | File | How to run |
 |----------|------|------------|
@@ -104,122 +27,124 @@ The launcher scripts automatically set up the environment and install dependenci
 | **Windows** | `run.bat` | Double-click in Explorer |
 | **Linux** | `run.sh` | Run `chmod +x run.sh && ./run.sh` |
 
-> **Note:** Python 3.8+ must be installed. On Linux, you may also need to install tkinter (`sudo apt install python3-tk` on Ubuntu/Debian).
+> **Note:** Python 3.8+ must be installed. On Linux, you may also need tkinter (`sudo apt install python3-tk`).
 
-### Manual Setup (Alternative)
+For manual installation see [Developer Information](#developer-information)
 
-```bash
-# Create virtual environment
-python -m venv .venv
+## Features
 
-# Activate
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
+- **Design of Experiments (DoE)** — Full factorial, fractional factorial, Plackett-Burman, Box-Behnken, Central Composite, Latin Hypercube, D-Optimal
+- **Statistical Analysis** — Linear models, interaction effects, quadratic models, ANOVA
+- **Bayesian Optimization** — Smart suggestions for next experiments using Ax-Platform
+- **Visualization** — Main effects, interaction plots, residual diagnostics, Pareto fronts
+- **Opentrons Integration** — Export CSV for automated liquid handling
 
-# Install dependencies
-pip install -r requirements.txt
+## Documentation
 
-# Launch
-python main.py
+- **[Design Types Guide](docs/DESIGN_GUIDE.md)** — Choosing and using the 7 design types
+- **[Well Mapping Guide](docs/WELL_MAPPING.md)** — Well organization and Opentrons compatibility
+
+## More Information
+
+<details>
+
+<summary>Repository structure</summary>
+
+```
+SCOUT/
+├─ run.command              # macOS launcher
+├─ run.bat                  # Windows launcher
+├─ run.sh                   # Linux launcher
+├─ main.py                  # Application entry point
+├─ gui/                     # User interface
+│  ├─ main_window.py
+│  └─ tabs/
+│     ├─ designer_tab.py    # DoE Designer
+│     └─ analysis_tab.py    # Analysis & optimization
+├─ core/                    # Business logic
+│  ├─ doe_designer.py       # Design generation
+│  ├─ doe_analyzer.py       # Statistical analysis
+│  ├─ optimizer.py          # Bayesian optimization
+│  └─ ...
+├─ opentrons/               # Robot protocol
+│  └─ protein_stability_doe.py
+├─ tests/                   # Unit tests
+└─ requirements.txt         # Dependencies
 ```
 
-The application opens with two tabs:
+</details>
 
-**Designer Tab** — Build experimental designs
+<details>
 
-- Add factors and levels (units supported: M, mM, µM, nM, %, w/v, v/v).
-- Combination counter shows the number of conditions.
-- **Export** produces:
-  - `*.xlsx` (Design table)
-  - `*.csv` (Opentrons volumes in **µL**, ready for the protocol)
+<summary>Opentrons Protocol</summary>
 
-**CSV format expected by the robot**
+Upload `opentrons/protein_stability_doe.py` to the Opentrons App (API Level 2.20).
 
-- **Row 1**: reagent names (headers)  
-- **Row 2+**: volumes per condition (**µL**), one condition per row
+### Deck layout
 
-Example:
+- **Slot 1**: 96-well plate #1 — `greiner_96_well_u_bottom_323ul`
+- **Slot 2**: 384-well plate — `corning_384_wellplate_112ul_flat`
+- **Slot 5**: 24-well reservoir — `cytiva_24_reservoir_10ml`
+- **Slots 7–11**: `opentrons_96_tiprack_300ul`
+
+### Pipettes
+
+- **Left**: `p300_multi` (96→384 transfers)
+- **Right**: `p300_single` (buffer preparation)
+
+### CSV format
+
 ```
 Buffer,Glycerol,NaCl,pH Buffer
 150,20,10,5
 140,30,15,5
-...
 ```
 
-### 3) Opentrons — run the preparation
+</details>
 
-Upload `opentrons/protein_stability_doe.py` to the Opentrons App (API Level 2.20).
-Provide the **CSV content** via protocol parameter.
+<details>
 
-**Deck & labware** (as used by the script):
-
-- **Slot 1**: 96‑well plate #1 — `greiner_96_well_u_bottom_323ul`
-- **Slot 2**: 384‑well plate — `corning_384_wellplate_112ul_flat`
-- **Slot 3**: 96‑well plate #2 *(auto‑loaded if needed)*
-- **Slot 4**: 96‑well plate #3 *(auto‑loaded if needed)*
-- **Slot 5**: 24‑well reservoir — `cytiva_24_reservoir_10ml`
-- **Slot 6**: 96‑well plate #4 *(auto‑loaded if needed)*
-- **Slots 7–11**: `opentrons_96_tiprack_300ul` (single channel in 7; multichannel in 9 + extras in 8,10,11)
-
-**Pipettes**
-
-- **Left**: `p300_multi` (96→384 transfers)  
-- **Right**: `p300_single` (buffer preparation)
-
-> If you have Gen1 pipettes and/or different labware, edit the identifiers accordingly in `protein_stability_doe.py`.
-
-The protocol:
-- Reads the CSV headers (reagents) and the following rows (volumes).
-- Prepares conditions across as many 96‑well plates as needed.
-- Mixes before transfers and (optionally) maps columns into the 384‑well plate (A/B rows).
-- Prints a summary of plate/well usage at the end of the run.
-
-### 4) Analysis Tab — Run statistics & optimization
-
-Switch to the **Analysis** tab in the application.
-
-**Features:**
-- Import CSV/XLSX results (expects factor columns + a **Response** column)
-- Statistical modeling (Linear, Interactions, Quadratic models)
-- Model comparison and automatic selection
-- Main effects, interaction, and residual diagnostic plots
-- Bayesian Optimization for next-batch suggestions
-- Export results and publication-quality figures
-
----
-
-## Troubleshooting
+<summary>Troubleshooting</summary>
 
 - **Missing dependencies** → Run `pip install -r requirements.txt`
-- **GUI doesn't launch** → Ensure Python 3.8+ is installed: `python --version`
+- **GUI doesn't launch** → Ensure Python 3.8+: `python --version`
 - **Tests failing** → Install dev dependencies: `pip install -r requirements-dev.txt`
-- **Pipette volume assertion in Opentrons** → Ensure per‑transfer volumes are ≤ pipette max; adjust volumes or split transfers in the CSV/design
-- **Gen1 vs Gen2 pipettes / alternative labware** → Change the model strings in `protein_stability_doe.py` (e.g., pipette names or labware definitions)
-- **CSV parsed but no rows** → Verify the first line is headers and that at least one non‑empty row follows (no stray separators)
+- **Pipette volume error** → Ensure volumes are ≤ pipette max
 
----
+</details>
 
-## Development notes
+<details>
 
-- **Architecture**: Modular design with separated GUI, business logic, and utilities
-- **Testing**: 71 unit tests with pytest (23% coverage on core modules: 100% exporter, 99% plotter, 98% data_handler, 51% doe_analyzer)
-- **GUI Framework**: Tkinter (cross-platform desktop application)
-- **Statistical Engine**: statsmodels for regression analysis
-- **Optimization**: Ax-Platform for Bayesian Optimization
-- **Opentrons Protocol**: API Level 2.20, validated on p300 single + multi pipettes
-- **Python Version**: 3.8–3.11 (specified in setup.py and .python-version)
+<summary>Information for SCOUT developers</summary>
 
-**Running Tests:**
-```bash
+### Developer installation
+
+To develop on SCOUT please fork this repository and then install locally:
+
+```
+git clone https://github.com/YOUR_USER/SCOUT
+cd SCOUT
+pip install -e .
 pip install -r requirements-dev.txt
+```
+
+### Running tests
+
+```
 pytest tests/ -v
 ```
 
----
+71 unit tests covering core modules.
+
+### Architecture
+
+- **GUI Framework**: Tkinter (cross-platform)
+- **Statistical Engine**: statsmodels
+- **Optimization**: Ax-Platform for Bayesian Optimization
+- **Python**: 3.8–3.11
+
+</details>
 
 ## License
 
-This project is licensed under the MIT License.  
-See the [LICENSE] file for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE.txt) for details.
