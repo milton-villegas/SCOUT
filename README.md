@@ -19,6 +19,26 @@ SCOUT is in active development and feedback is appreciated.
 
 ---
 
+<p align="center">
+A Python toolkit for <b>Design of Experiments (DoE)</b>, statistical analysis, and <b>Bayesian Optimization</b><br>
+for protein stability, buffer screening, crystallization, and formulation studies.
+</p>
+
+---
+
+## Features
+
+- **Design of Experiments (DoE)** — Full factorial, fractional factorial, Plackett-Burman, Box-Behnken, Central Composite, Latin Hypercube, D-Optimal designs
+- **Statistical Analysis** — Linear models, interaction effects, quadratic models, ANOVA
+- **Bayesian Optimization** — Smart suggestions for next experiments using Ax-Platform
+- **Visualization** — Main effects, interaction plots, residual diagnostics, Pareto fronts
+- **Opentrons Integration** — Export CSV for automated liquid handling
+- **Cross-platform** — Windows, macOS, Linux with simple double-click launchers
+
+---
+
+## Overview
+
 A unified application for designing, executing, and analyzing experimental screens:
 
 1. **Designer Tab** — build full‑factorial/Custom designs and export CSV/XLSX for the robot.
