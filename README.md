@@ -18,8 +18,7 @@ SCOUT is in active development and feedback is appreciated.
 </p>
 
 <p align="center">
-A Python toolkit for <b>Design of Experiments (DoE)</b>, statistical analysis, and <b>Bayesian Optimization</b><br>
-for protein stability, buffer screening, crystallization, and formulation studies.
+A Python toolkit for <b>Design of Experiments (DoE)</b>, statistical analysis, and <b>Bayesian Optimization</b> for protein stability, buffer screening, crystallization, and formulation studies.
 </p>
 
 ## Installation
