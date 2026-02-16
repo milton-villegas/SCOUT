@@ -1,6 +1,5 @@
 ---
 title: SCOUT
-emoji: 🧪
 colorFrom: green
 colorTo: blue
 sdk: docker
