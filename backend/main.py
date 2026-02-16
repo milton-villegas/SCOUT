@@ -17,6 +17,8 @@ logging.basicConfig(
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Ensure project root is in path so core/ imports work
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -39,7 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SCOUT API",
     description="Screening & Condition Optimization Utility Tool - Web API",
-    version="2.0.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -62,4 +64,10 @@ app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": "0.2.0"}
+
+
+# Serve static frontend if build directory exists (Docker/production)
+STATIC_DIR = os.path.join(PROJECT_ROOT, "frontend", "build")
+if os.path.isdir(STATIC_DIR):
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")

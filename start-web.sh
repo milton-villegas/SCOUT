@@ -20,7 +20,7 @@ sleep 2
 # Start SvelteKit frontend
 echo "Starting frontend on http://localhost:5173..."
 cd "$SCRIPT_DIR/frontend"
-npm run dev -- --host 0.0.0.0 --port 5173 &
+VITE_API_URL="http://localhost:8000" npm run dev -- --host 0.0.0.0 --port 5173 &
 FRONTEND_PID=$!
 
 echo ""
