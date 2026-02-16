@@ -26,7 +26,7 @@ for protein stability, buffer screening, crystallization, and formulation studie
 - **Design of Experiments** — Full factorial, fractional factorial, Plackett-Burman, Box-Behnken, Central Composite, Latin Hypercube (SMT-optimized), D-Optimal
 - **Statistical Analysis** — Auto model selection, interaction effects, quadratic models, model comparison
 - **Bayesian Optimization** — Multi-objective suggestions for next experiments using Ax-Platform
-- **Opentron Export** — Excel (3 sheets) and CSV with volume calculations, well positions, and reagent setup
+- **Opentrons Export** — Excel (3 sheets) and CSV with volume calculations, well positions, and reagent setup
 - **Visualization** — Main effects, interaction plots, residual diagnostics, Pareto fronts
 
 ## Quick Start
@@ -43,9 +43,9 @@ To run the web version locally on your machine:
 | **Windows** | `start-web.bat` | Double-click to launch |
 | **Linux** | `start-web.sh` | `chmod +x start-web.sh && ./start-web.sh` |
 
-Opens automatically at **http://localhost:5173**
+Opens your browser automatically at **http://localhost:5173**
 
-> **Requirements:** Python 3.10+ and Node.js 20+. First run installs dependencies automatically.
+> **Requirements:** Python 3.10+ and Node.js 20+. Dependencies install automatically on first run.
 
 <details>
 <summary>Alternative: Desktop App (Tkinter)</summary>
@@ -74,6 +74,7 @@ A legacy desktop interface is available via `python main.py` or the platform lau
 
 ```
 SCOUT/
+├─ .github/workflows/          # Auto-deploy to HF Spaces
 ├─ backend/                    # FastAPI web API
 │  ├─ main.py                  # App entry point
 │  ├─ routers/                 # API endpoints
@@ -133,6 +134,11 @@ pytest tests/ -v
 - **Frontend**: SvelteKit + Tailwind + DaisyUI
 - **Analysis**: statsmodels, Ax-Platform, SMT
 - **Python**: 3.10+
+
+### Deployment
+
+Every push to `main` automatically deploys to [Hugging Face Spaces](https://huggingface.co/spaces/milton-villegas/SCOUT) via GitHub Actions.
+
 </details>
 
 ## License
