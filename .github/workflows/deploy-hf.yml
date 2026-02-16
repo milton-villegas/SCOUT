@@ -11,18 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           lfs: true
 
-      - name: Add HF Spaces config to README
-        run: |
-          printf '%s\n' '---' 'title: SCOUT' 'emoji: 🔬' 'colorFrom: blue' 'colorTo: green' 'sdk: docker' 'pinned: false' '---' '' | cat - README.md > tmp && mv tmp README.md
-          git config user.email "action@github.com"
-          git config user.name "GitHub Action"
-          git add README.md
-          git commit -m "Add HF config"
-
-      - name: Push to Hugging Face
+      - name: Prepare and deploy
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://milton-villegas:$HF_TOKEN@huggingface.co/spaces/milton-villegas/SCOUT main
+        run: |
+          # Add HF Spaces YAML config to README
+          printf '%s\n' '---' 'title: SCOUT' 'emoji: 🔬' 'colorFrom: blue' 'colorTo: green' 'sdk: docker' 'pinned: false' '---' '' | cat - README.md > tmp && mv tmp README.md
+
+          # Remove binary files HF rejects
+          git rm --cached assets/scout_logo.png examples/*.xlsx 2>/dev/null || true
+
+          # Create clean orphan branch to avoid binary history
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git checkout --orphan hf-deploy
+          git add -A
+          git commit -m "Deploy"
+          git push --force https://milton-villegas:$HF_TOKEN@huggingface.co/spaces/milton-villegas/SCOUT hf-deploy:main
