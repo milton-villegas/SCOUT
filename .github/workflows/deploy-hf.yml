@@ -21,7 +21,7 @@ jobs:
           printf '%s\n' '---' 'title: SCOUT' 'emoji: 🔬' 'colorFrom: blue' 'colorTo: green' 'sdk: docker' 'pinned: false' '---' '' | cat - README.md > tmp && mv tmp README.md
 
           # Remove binary files HF rejects
-          git rm --cached assets/scout_logo.png examples/*.xlsx 2>/dev/null || true
+          git rm --cached docs/assets/scout_logo.png examples/*.xlsx 2>/dev/null || true
 
           # Create clean orphan branch to avoid binary history
           git config user.email "action@github.com"

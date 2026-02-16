@@ -9,6 +9,10 @@ echo   Protein Stability DoE Suite
 echo ==========================================
 echo.
 
+REM Set project root (parent of scripts/)
+set PROJECT_ROOT=%~dp0..
+cd %PROJECT_ROOT%
+
 REM Check if Python is installed (try python first, then python3)
 set PYTHON_CMD=python
 python --version >nul 2>&1

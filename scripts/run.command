@@ -4,8 +4,8 @@
 # Double-click this file to run the application
 # ============================================
 
-# Change to the script's directory
-cd "$(dirname "$0")"
+# Change to the project root directory
+cd "$(dirname "$0")/.."
 
 # Colors for output
 RED='\033[0;31m'

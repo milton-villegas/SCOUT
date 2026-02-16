@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/scout_logo.png" alt="SCOUT Logo" width="150">
+  <img src="docs/assets/scout_logo.png" alt="SCOUT Logo" width="150">
 </p>
 
 <h1 align="center">SCOUT</h1>
@@ -39,9 +39,9 @@ To run the web version locally on your machine:
 
 | Platform | Launcher | What it does |
 |----------|----------|--------------|
-| **macOS** | `start-web.command` | Double-click to launch |
-| **Windows** | `start-web.bat` | Double-click to launch |
-| **Linux** | `start-web.sh` | `chmod +x start-web.sh && ./start-web.sh` |
+| **macOS** | `scripts/start-web.command` | Double-click to launch |
+| **Windows** | `scripts/start-web.bat` | Double-click to launch |
+| **Linux** | `scripts/start-web.sh` | `chmod +x scripts/start-web.sh && ./scripts/start-web.sh` |
 
 Opens your browser automatically at **http://localhost:5173**
 
@@ -54,9 +54,9 @@ A legacy desktop interface is available via `python main.py` or the platform lau
 
 | Platform | File |
 |----------|------|
-| **macOS** | `run.command` |
-| **Windows** | `run.bat` |
-| **Linux** | `run.sh` |
+| **macOS** | `scripts/run.command` |
+| **Windows** | `scripts/run.bat` |
+| **Linux** | `scripts/run.sh` |
 
 > Note: The web version has a more modern UI and all the latest features.
 
@@ -93,8 +93,8 @@ SCOUT/
 ├─ gui/                        # Tkinter desktop UI (offline)
 ├─ opentrons/                  # Robot protocol
 ├─ tests/                      # 400+ unit tests
+├─ scripts/                    # Platform launchers
 ├─ Dockerfile                  # Hugging Face Spaces deployment
-├─ start-web.sh                # Local web launcher
 └─ main.py                     # Desktop app entry point
 ```
 </details>

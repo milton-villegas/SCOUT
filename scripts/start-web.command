@@ -1,7 +1,7 @@
 #!/bin/bash
 # Start SCOUT Web Application (Backend + Frontend)
 set -e
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "======================================"
 echo "  SCOUT Web Application"
