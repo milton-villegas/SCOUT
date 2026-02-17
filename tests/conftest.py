@@ -3,7 +3,6 @@ import pytest
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import tempfile
 import openpyxl
 from openpyxl.styles import Font
 

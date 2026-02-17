@@ -8,7 +8,6 @@ Email: miltonfvillegas@gmail.com
 Version: 1.0.0
 """
 
-import sys
 from gui.main_window import ProteinDoESuite
 
 

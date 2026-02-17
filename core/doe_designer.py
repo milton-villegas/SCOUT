@@ -3,7 +3,7 @@ DoE Design Generation Logic
 Refactored to use new service layer
 """
 import itertools
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import pandas as pd
 from core.project import AVAILABLE_FACTORS
 from core.well_mapper import WellMapper
@@ -152,9 +152,9 @@ class DoEDesigner:
                                factors: Dict[str, List[str]],
                                stock_concs: Dict[str, float],
                                final_volume: float,
-                               per_level_concs: Dict = None,
-                               protein_stock: float = None,
-                               protein_final: float = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
+                               per_level_concs: Optional[Dict] = None,
+                               protein_stock: Optional[float] = None,
+                               protein_final: Optional[float] = None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Build full factorial design with Excel and volume data
 

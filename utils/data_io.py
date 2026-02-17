@@ -4,7 +4,7 @@ Shared between Designer and Analysis modules
 """
 import csv
 import pandas as pd
-from typing import List, Dict, Optional, Tuple
+from typing import List, Optional, Tuple
 from tkinter import filedialog
 
 def load_csv(filepath: str) -> pd.DataFrame:

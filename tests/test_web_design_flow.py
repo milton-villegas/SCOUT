@@ -344,7 +344,7 @@ def test_export_excel():
     protein_rows = [r for r in all_rows if r[0] and "Protein" in str(r[0])]
     assert len(protein_rows) == 1, f"Expected 1 protein row, got {len(protein_rows)}"
     assert protein_rows[0][2] == 29.75, f"Protein stock should be 29.75, got {protein_rows[0][2]}"
-    assert protein_rows[0][4] == "mg/mL", f"Protein unit should be mg/mL"
+    assert protein_rows[0][4] == "mg/mL", "Protein unit should be mg/mL"
     print(f"  Protein row: {protein_rows[0]}")
 
     # --- CSV export ---
@@ -364,8 +364,7 @@ def test_config_endpoints():
     from utils.constants import AVAILABLE_FACTORS
     from config.design_config import (
         CATEGORICAL_FACTORS, FACTOR_CONSTRAINTS, UNIT_OPTIONS,
-        DESIGN_TYPES, FRACTIONAL_RESOLUTION_OPTIONS,
-        CCD_TYPE_OPTIONS, D_OPTIMAL_MODEL_OPTIONS,
+        DESIGN_TYPES,
     )
 
     print("=== Testing Config Data ===")
@@ -611,9 +610,9 @@ def test_export_matches_real_template():
 
     # Per-level stocks should have Level filled
     for row in per_level_stocks:
-        assert row[1] is not None and str(row[1]).strip(), f"Level should be filled for per-level"
-        assert isinstance(row[2], (int, float)), f"Stock Value should be numeric for per-level"
-        assert isinstance(row[3], (int, float)), f"Final Value should be numeric for per-level"
+        assert row[1] is not None and str(row[1]).strip(), "Level should be filled for per-level"
+        assert isinstance(row[2], (int, float)), "Stock Value should be numeric for per-level"
+        assert isinstance(row[3], (int, float)), "Final Value should be numeric for per-level"
         print(f"    Per-level: {row[0]} | {row[1]} = stock:{row[2]}, final:{row[3]}")
 
     # 5. Now generate export with web service and compare structure

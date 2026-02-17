@@ -69,7 +69,6 @@ def generate_predictions_plot(plotter: DoEPlotter, predictions=None, residuals=N
         if predictions is None:
             raise ValueError("Predictions required. Run analysis first.")
         # DoEPlotter doesn't have plot_predictions_vs_actual, build it inline
-        import numpy as np
         actual = predictions + residuals if residuals is not None else predictions
         fig, ax = plt.subplots(figsize=(7, 5))
         ax.scatter(actual, predictions, alpha=0.7, edgecolors='white', linewidth=0.5)

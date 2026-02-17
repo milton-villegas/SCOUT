@@ -1,6 +1,5 @@
 """Tests for WellMapper service"""
 
-import pytest
 from core.well_mapper import WellMapper
 
 

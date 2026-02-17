@@ -1,7 +1,6 @@
 """Tests for DoEDesigner class"""
 
 import pytest
-import pandas as pd
 from core.doe_designer import DoEDesigner
 
 

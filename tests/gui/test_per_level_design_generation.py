@@ -6,10 +6,9 @@ valid combinations and maintaining design properties (e.g., space-filling for LH
 """
 import pytest
 import pandas as pd
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 from gui.tabs.designer.models import FactorModel
 from gui.tabs.designer.design_panel import DesignPanelMixin
-import tkinter as tk
 
 
 # Wrapper class to make DesignPanelMixin testable (not a Test* class to avoid pytest collection)

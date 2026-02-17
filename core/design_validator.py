@@ -7,8 +7,6 @@ from typing import Dict, List, Optional, Tuple, Any
 from config.design_config import (
     FACTOR_CONSTRAINTS,
     MAX_TOTAL_WELLS,
-    MAX_PLATES,
-    WELLS_PER_PLATE,
     MIN_SAMPLE_SIZE,
     MAX_SAMPLE_SIZE,
     FRACTIONAL_RESOLUTION_OPTIONS,

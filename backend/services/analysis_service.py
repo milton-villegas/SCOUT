@@ -94,7 +94,7 @@ def run_analysis(
             serialized = _serialize_results(res)
             results[response_name] = serialized
 
-        logger.info(f"[SERVICE.RUN] Serialization complete")
+        logger.info("[SERVICE.RUN] Serialization complete")
         return results
     except Exception as e:
         logger.error(f"[SERVICE.RUN] ERROR: {e}\n{traceback.format_exc()}")

@@ -1,6 +1,5 @@
 """Tests for DesignValidator service"""
 
-import pytest
 from core.design_validator import DesignValidator, CategoricalValidator
 
 

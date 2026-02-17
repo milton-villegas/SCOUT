@@ -222,10 +222,10 @@ class OptimizationPanelMixin:
         # Find best based on direction
         if response_direction == 'minimize':
             best_idx = filtered_data[self.handler.response_column].idxmin()
-            self._debug_log(f"  - Using idxmin() for minimize")
+            self._debug_log("  - Using idxmin() for minimize")
         else:
             best_idx = filtered_data[self.handler.response_column].idxmax()
-            self._debug_log(f"  - Using idxmax() for maximize")
+            self._debug_log("  - Using idxmax() for maximize")
 
         optimal_response = filtered_data.loc[best_idx, self.handler.response_column]
         self._debug_log(f"  - Best value: {optimal_response} at index {best_idx}")
@@ -326,7 +326,7 @@ class OptimizationPanelMixin:
                 # Initialize optimizer with current data (multi-response support)
                 exploration_mode = self.exploration_mode_var.get() if hasattr(self, 'exploration_mode_var') else False
 
-                self._debug_log(f"[DEBUG ANALYSIS] Setting optimizer data:")
+                self._debug_log("[DEBUG ANALYSIS] Setting optimizer data:")
                 self._debug_log(f"  - Response columns: {self.selected_responses}")
                 self._debug_log(f"  - Response directions: {self.response_directions}")
                 self._debug_log(f"  - Response constraints: {self.response_constraints}")
@@ -343,7 +343,7 @@ class OptimizationPanelMixin:
                     exploration_mode=exploration_mode
                 )
 
-                self._debug_log(f"[DEBUG ANALYSIS] After set_data:")
+                self._debug_log("[DEBUG ANALYSIS] After set_data:")
                 self._debug_log(f"  - Optimizer.response_directions: {self.optimizer.response_directions}")
                 self._debug_log(f"  - Optimizer.response_constraints: {self.optimizer.response_constraints}")
                 self._debug_log(f"  - Optimizer.is_multi_objective: {self.optimizer.is_multi_objective}")
@@ -498,7 +498,7 @@ class OptimizationPanelMixin:
 
                 # Add Pareto frontier analysis for multi-objective
                 if self.optimizer.is_multi_objective:
-                    self._debug_log(f"\n[DEBUG DISPLAY] Displaying Pareto frontier...")
+                    self._debug_log("\n[DEBUG DISPLAY] Displaying Pareto frontier...")
                     self._debug_log(f"  response_directions at display time: {self.response_directions}")
 
                     pareto_points = self.optimizer.get_pareto_frontier()
@@ -525,10 +525,10 @@ class OptimizationPanelMixin:
                             self.recommendations_text.insert(tk.END, header + "\n")
 
                             if i == 1:  # Debug first point
-                                self._debug_log(f"\n[DEBUG DISPLAY] First Pareto point:")
+                                self._debug_log("\n[DEBUG DISPLAY] First Pareto point:")
                                 self._debug_log(f"  ID: {point.get('id')}")
                                 self._debug_log(f"  Objectives: {point['objectives']}")
-                                self._debug_log(f"  Checking directions for each objective:")
+                                self._debug_log("  Checking directions for each objective:")
 
                             # Display experimental conditions
                             if point.get('parameters'):
@@ -785,7 +785,7 @@ class OptimizationPanelMixin:
 
         except Exception as e:
             print(f"\n{'='*60}")
-            print(f"DISPLAY OPTIMIZATION PLOT ERROR")
+            print("DISPLAY OPTIMIZATION PLOT ERROR")
             print(f"{'='*60}")
             print(f"Error type: {type(e).__name__}")
             print(f"Error message: {str(e)}")

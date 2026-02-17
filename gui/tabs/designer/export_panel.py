@@ -655,7 +655,7 @@ class ExportPanelMixin:
 
             if missing_stocks:
                 messagebox.showerror("Missing Stock Concentrations",
-                    f"The following factors need stock concentrations:\n\n" +
+                    "The following factors need stock concentrations:\n\n" +
                     "\n".join(f"- {f}" for f in missing_stocks) +
                     "\n\nEdit each factor to add stock concentrations.")
                 return
@@ -677,7 +677,7 @@ class ExportPanelMixin:
             # If there are volume conflicts, show warning BEFORE file dialog
             export_csv = True  # By default, export both files
             if has_conflicts:
-                warning_msg = f"⚠️ WARNING: Volume Conflicts Detected\n\n"
+                warning_msg = "⚠️ WARNING: Volume Conflicts Detected\n\n"
                 warning_msg += f"Problem: {len(negative_water_wells)} wells have negative water volumes\n\n"
                 warning_msg += "What will be exported:\n"
                 warning_msg += "  ✅ Excel file - WITH Warning sheet for review\n"

@@ -9,13 +9,12 @@ logger = logging.getLogger(__name__)
 
 from backend.dependencies import get_current_session
 from backend.schemas.factors import (
-    FactorAddRequest, FactorUpdateRequest, FactorFromAvailableRequest, FactorsResponse,
+    FactorAddRequest, FactorUpdateRequest, FactorFromAvailableRequest,
 )
 from backend.schemas.design import (
     DesignGenerateRequest, BuildFactorialRequest, DesignGenerateResponse, ExportRequest,
 )
 from backend.services import design_service, export_service
-from config.design_config import WELLS_PER_PLATE
 
 router = APIRouter()
 

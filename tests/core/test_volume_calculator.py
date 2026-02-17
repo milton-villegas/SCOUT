@@ -1,6 +1,5 @@
 """Tests for VolumeCalculator service"""
 
-import pytest
 from core.volume_calculator import VolumeCalculator, VolumeValidator
 
 

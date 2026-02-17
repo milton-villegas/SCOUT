@@ -23,11 +23,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Data processing imports
-import pandas as pd
-import numpy as np
 
 # Statistical analysis imports
-import statsmodels.formula.api as smf
 
 
 # ============================================================================
@@ -122,7 +119,7 @@ def _validate_min_constraint(response_name, direction, min_val, data_min, data_m
                 'severity': 'warning',
                 'category': 'no_data_min',
                 'message': f"{response_name} Min={min_val:.2f} is above all data ({data_max:.2f}) - will be ignored",
-                'detail': f"No experiments meet this constraint. Analysis will proceed without it.",
+                'detail': "No experiments meet this constraint. Analysis will proceed without it.",
                 'should_stop': False,
                 'experiments_meeting': 0
             }
@@ -146,7 +143,7 @@ def _validate_max_constraint(response_name, direction, max_val, data_min, data_m
                 'severity': 'warning',
                 'category': 'no_data_max',
                 'message': f"{response_name} Max={max_val:.2f} is below all data ({data_min:.2f}) - will be ignored",
-                'detail': f"No experiments meet this constraint. Analysis will proceed without it.",
+                'detail': "No experiments meet this constraint. Analysis will proceed without it.",
                 'should_stop': False,
                 'experiments_meeting': 0
             }
@@ -199,7 +196,6 @@ import matplotlib
 matplotlib.use('TkAgg')  # Backend for embedding plots in tkinter GUI
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from scipy import stats as scipy_stats
 import seaborn as sns
 
 # Set plotting style
@@ -216,8 +212,6 @@ from core.optimizer import BayesianOptimizer
 from core.data_handler import DataHandler
 from core.plotter import DoEPlotter
 from core.exporter import ResultsExporter
-from utils.constants import METADATA_COLUMNS
-from utils.sanitization import smart_factor_match
 
 
 # GUI Application
@@ -798,7 +792,7 @@ class AnalysisTab(ttk.Frame):
             messagebox.showwarning("Warning", "Please select at least one response variable.")
             return
 
-        self._debug_log(f"\n[DEBUG ANALYZE] Starting analysis with:")
+        self._debug_log("\n[DEBUG ANALYZE] Starting analysis with:")
         self._debug_log(f"  - Selected responses: {self.selected_responses}")
         self._debug_log(f"  - Response directions: {self.response_directions}")
         self._debug_log(f"  - Response constraints: {self.response_constraints}")
@@ -957,7 +951,7 @@ class AnalysisTab(ttk.Frame):
         except Exception as e:
             import traceback
             print(f"\n{'='*60}")
-            print(f"❌ ANALYSIS ERROR")
+            print("❌ ANALYSIS ERROR")
             print(f"{'='*60}")
             print(f"Error type: {type(e).__name__}")
             print(f"Error message: {str(e)}")
@@ -1507,10 +1501,10 @@ class AnalysisTab(ttk.Frame):
         # Find best based on direction
         if response_direction == 'minimize':
             best_idx = filtered_data[self.handler.response_column].idxmin()
-            self._debug_log(f"  - Using idxmin() for minimize")
+            self._debug_log("  - Using idxmin() for minimize")
         else:
             best_idx = filtered_data[self.handler.response_column].idxmax()
-            self._debug_log(f"  - Using idxmax() for maximize")
+            self._debug_log("  - Using idxmax() for maximize")
 
         optimal_response = filtered_data.loc[best_idx, self.handler.response_column]
         self._debug_log(f"  - Best value: {optimal_response} at index {best_idx}")
@@ -1611,7 +1605,7 @@ class AnalysisTab(ttk.Frame):
                 # Initialize optimizer with current data (multi-response support)
                 exploration_mode = self.exploration_mode_var.get() if hasattr(self, 'exploration_mode_var') else False
 
-                self._debug_log(f"[DEBUG ANALYSIS] Setting optimizer data:")
+                self._debug_log("[DEBUG ANALYSIS] Setting optimizer data:")
                 self._debug_log(f"  - Response columns: {self.selected_responses}")
                 self._debug_log(f"  - Response directions: {self.response_directions}")
                 self._debug_log(f"  - Response constraints: {self.response_constraints}")
@@ -1628,7 +1622,7 @@ class AnalysisTab(ttk.Frame):
                     exploration_mode=exploration_mode
                 )
 
-                self._debug_log(f"[DEBUG ANALYSIS] After set_data:")
+                self._debug_log("[DEBUG ANALYSIS] After set_data:")
                 self._debug_log(f"  - Optimizer.response_directions: {self.optimizer.response_directions}")
                 self._debug_log(f"  - Optimizer.response_constraints: {self.optimizer.response_constraints}")
                 self._debug_log(f"  - Optimizer.is_multi_objective: {self.optimizer.is_multi_objective}")
@@ -1763,7 +1757,7 @@ class AnalysisTab(ttk.Frame):
 
                 # Add Pareto frontier analysis for multi-objective
                 if self.optimizer.is_multi_objective:
-                    self._debug_log(f"\n[DEBUG DISPLAY] Displaying Pareto frontier...")
+                    self._debug_log("\n[DEBUG DISPLAY] Displaying Pareto frontier...")
                     self._debug_log(f"  response_directions at display time: {self.response_directions}")
 
                     pareto_points = self.optimizer.get_pareto_frontier()
@@ -1790,10 +1784,10 @@ class AnalysisTab(ttk.Frame):
                             self.recommendations_text.insert(tk.END, header + "\n")
 
                             if i == 1:  # Debug first point
-                                self._debug_log(f"\n[DEBUG DISPLAY] First Pareto point:")
+                                self._debug_log("\n[DEBUG DISPLAY] First Pareto point:")
                                 self._debug_log(f"  ID: {point.get('id')}")
                                 self._debug_log(f"  Objectives: {point['objectives']}")
-                                self._debug_log(f"  Checking directions for each objective:")
+                                self._debug_log("  Checking directions for each objective:")
 
                             # Display experimental conditions
                             if point.get('parameters'):
@@ -1977,7 +1971,7 @@ class AnalysisTab(ttk.Frame):
 
         except Exception as e:
             print(f"\n{'='*60}")
-            print(f"❌ DISPLAY OPTIMIZATION PLOT ERROR")
+            print("❌ DISPLAY OPTIMIZATION PLOT ERROR")
             print(f"{'='*60}")
             print(f"Error type: {type(e).__name__}")
             print(f"Error message: {str(e)}")

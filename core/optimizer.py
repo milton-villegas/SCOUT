@@ -4,9 +4,7 @@ Extracted from doe_analysis_gui.pyw
 """
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple, Optional
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy import stats as scipy_stats
 import os
 from datetime import datetime
@@ -172,7 +170,7 @@ class BayesianOptimizer:
 
                     print(f"ℹ️  Treating '{factor}' as ordered categorical parameter")
                     print(f"   Tested pH values: {tested_ph_values}")
-                    print(f"   BO will only suggest from these tested values (no extrapolation)")
+                    print("   BO will only suggest from these tested values (no extrapolation)")
 
                     parameters.append({
                         "name": sanitized_name,
@@ -186,7 +184,7 @@ class BayesianOptimizer:
                     min_val, max_val = self.factor_bounds[factor]
                     if abs(max_val - min_val) < 1e-9:  # Essentially equal
                         print(f"ℹ️  '{factor}' has constant value ({min_val}) - treating as ordered categorical")
-                        print(f"   BO will always suggest this value (only tested value)")
+                        print("   BO will always suggest this value (only tested value)")
                         # Treat as ordered categorical with single value (like pH)
                         # This allows it to adapt if more values are added later
                         parameters.append({
@@ -220,7 +218,7 @@ class BayesianOptimizer:
                 print("\n" + "="*80)
                 print("BAYESIAN OPTIMIZATION INITIALIZATION")
                 print("="*80)
-                print(f"[DEBUG INIT] Multi-objective optimization")
+                print("[DEBUG INIT] Multi-objective optimization")
                 print(f"[DEBUG INIT] Optimizing {len(self.response_columns)} objectives:")
             for response in self.response_columns:
                 direction = self.response_directions[response]
@@ -238,7 +236,7 @@ class BayesianOptimizer:
                 print("\n" + "="*80)
                 print("BAYESIAN OPTIMIZATION INITIALIZATION")
                 print("="*80)
-                print(f"[DEBUG INIT] Single-objective optimization")
+                print("[DEBUG INIT] Single-objective optimization")
                 arrow = '↓' if minimize else '↑'
                 print(f"  {arrow} {self.response_column}: {direction} (Ax minimize={minimize})")
 
@@ -248,14 +246,14 @@ class BayesianOptimizer:
         objective_constraints = {}  # Store constraints on objectives for post-filtering
 
         if DEBUG:
-            print(f"\n[DEBUG INIT] Building outcome constraints...")
+            print("\n[DEBUG INIT] Building outcome constraints...")
             print(f"  Response constraints: {self.response_constraints}")
             print(f"  Exploration mode: {self.exploration_mode}")
             print(f"  Objectives: {self.response_columns}")
 
         if self.response_constraints and not self.exploration_mode:
             if DEBUG:
-                print(f"[DEBUG INIT] Processing response constraints:")
+                print("[DEBUG INIT] Processing response constraints:")
             for response, constraint in self.response_constraints.items():
                 if DEBUG:
                     print(f"  Constraint for '{response}': {constraint}")
@@ -264,7 +262,7 @@ class BayesianOptimizer:
                 if response in self.response_columns:
                     if DEBUG:
                         print(f"    ⚠️  '{response}' is an OBJECTIVE - Ax won't accept constraint")
-                        print(f"    → Will post-filter BO suggestions instead")
+                        print("    → Will post-filter BO suggestions instead")
                     objective_constraints[response] = constraint
                 else:
                     # This is a constraint on a non-objective metric - Ax can handle it
@@ -294,7 +292,7 @@ class BayesianOptimizer:
                 print(f"[DEBUG INIT] Constraints for post-filtering: {len(objective_constraints)}")
         elif self.response_constraints and self.exploration_mode:
             if DEBUG:
-                print(f"[DEBUG INIT] Exploration mode enabled - constraints tracked but NOT enforced:")
+                print("[DEBUG INIT] Exploration mode enabled - constraints tracked but NOT enforced:")
                 for response, constraint in self.response_constraints.items():
                     parts = []
                     if 'min' in constraint:
@@ -305,14 +303,14 @@ class BayesianOptimizer:
                         print(f"  {' and '.join(parts)} (guidance only)")
         else:
             if DEBUG:
-                print(f"[DEBUG INIT] No constraints to apply")
+                print("[DEBUG INIT] No constraints to apply")
 
         # Store objective constraints for post-filtering in get_next_suggestions
         self.objective_constraints = objective_constraints
 
         # Create Ax client
         if DEBUG:
-            print(f"\n[DEBUG INIT] Creating Ax experiment...")
+            print("\n[DEBUG INIT] Creating Ax experiment...")
             print(f"  Parameters: {len(parameters)} defined")
             print(f"  Objectives: {list(objectives.keys())}")
             print(f"  Outcome constraints: {len(outcome_constraints)} defined")
@@ -327,7 +325,7 @@ class BayesianOptimizer:
                 choose_generation_strategy_kwargs={"num_initialization_trials": 0}
             )
             if DEBUG:
-                print(f"[DEBUG INIT] ✓ Ax experiment created successfully")
+                print("[DEBUG INIT] ✓ Ax experiment created successfully")
         except Exception as e:
             if DEBUG:
                 print(f"[DEBUG INIT] ❌ ERROR creating Ax experiment: {e}")
@@ -339,7 +337,7 @@ class BayesianOptimizer:
         if DEBUG:
             print(f"\n[DEBUG INIT] Adding {len(self.data)} existing trials to Ax...")
             print(f"  Available columns: {list(self.data.columns)}")
-            print(f"  Looking for ID column...")
+            print("  Looking for ID column...")
         for idx, row in self.data.iterrows():
             params = {}
             for factor in self.factor_columns:
@@ -372,7 +370,7 @@ class BayesianOptimizer:
             if exp_id is None:
                 exp_id = idx + 1  # Convert 0-based index to 1-based ID
                 if DEBUG and idx == 0:
-                    print(f"  ⚠️  No ID column found, using pandas index + 1 as ID (1-based)")
+                    print("  ⚠️  No ID column found, using pandas index + 1 as ID (1-based)")
 
             # Convert ID to Python int (handles numpy types from DataFrame)
             if exp_id is not None:
@@ -464,10 +462,10 @@ class BayesianOptimizer:
             print("="*80)
             print(f"[DEBUG SUGGESTIONS] Generating {n} suggestions")
             if has_objective_constraints:
-                print(f"  Objective constraints (informational):")
+                print("  Objective constraints (informational):")
                 for constraint, value in self.objective_constraints.items():
                     print(f"    {constraint}: {value}")
-                print(f"  Note: BO suggestions not filtered by constraints")
+                print("  Note: BO suggestions not filtered by constraints")
 
         for i in range(max_attempts):
             params, trial_index = self.ax_client.get_next_trial()
@@ -635,10 +633,10 @@ class BayesianOptimizer:
                     print(f"    Trial index (Ax): {trial_index}")
                     print(f"    Row index (pandas): {row_index}")
                     print(f"    ID: {exp_id}")
-                    print(f"    Parameters (experimental conditions):")
+                    print("    Parameters (experimental conditions):")
                     for param_name, param_value in original_params.items():
                         print(f"      {param_name}: {param_value}")
-                    print(f"    Objectives (results):")
+                    print("    Objectives (results):")
                     for obj_name, obj_value in mean_dict.items():
                         print(f"      {obj_name}: {obj_value:.2f}")
 
@@ -788,7 +786,6 @@ class BayesianOptimizer:
 
         elif n_objectives == 3:
             # 3D scatter plot
-            from mpl_toolkits.mplot3d import Axes3D
             fig = plt.figure(figsize=(9, 7))
             ax = fig.add_subplot(111, projection='3d')
 
@@ -887,9 +884,9 @@ class BayesianOptimizer:
                 print(f"\n{resp}:")
                 print(f"  Direction: {direction}")
                 print(f"  Data range: [{data_min:.2f}, {data_max:.2f}]")
-                print(f"  After normalization: lower values → 0, higher values → 1")
+                print("  After normalization: lower values → 0, higher values → 1")
                 if direction == 'minimize':
-                    print(f"  After flip: LOWER values (better) → 1, HIGHER values (worse) → 0")
+                    print("  After flip: LOWER values (better) → 1, HIGHER values (worse) → 0")
 
         # Plot all observed points (gray, thin lines)
         for idx, row in self.data.iterrows():
@@ -908,7 +905,7 @@ class BayesianOptimizer:
         colors = plt.cm.viridis(np.linspace(0, 1, len(pareto_points)))
 
         if DEBUG:
-            print(f"\nPareto Points (showing first 3):")
+            print("\nPareto Points (showing first 3):")
 
         for i, (p, color) in enumerate(zip(pareto_points, colors)):
             values = []
@@ -1183,7 +1180,7 @@ class BayesianOptimizer:
                                 break
 
                 if len(factor_importances) >= 2:
-                    print(f"✓ Using feature importances for factor selection")
+                    print("✓ Using feature importances for factor selection")
                     print(f"  Feature importances: {factor_importances}")
 
                     # Sort by importance and take top 2
@@ -1262,10 +1259,10 @@ class BayesianOptimizer:
                                             sensitivities[orig_factor] = float(sobol_val)
                                             break
                 else:
-                    print(f"ℹ️  No Sobol data found in analysis")
+                    print("ℹ️  No Sobol data found in analysis")
 
                 if len(sensitivities) >= 2:
-                    print(f"✓ Using Sobol sensitivity indices for factor selection")
+                    print("✓ Using Sobol sensitivity indices for factor selection")
                     print(f"  Sobol indices: {sensitivities}")
 
                     sorted_factors = sorted(sensitivities.items(), key=lambda x: x[1], reverse=True)
@@ -1277,7 +1274,7 @@ class BayesianOptimizer:
                     print(f"⚠ Could not extract enough Sobol indices (got {len(sensitivities)})")
 
         except ImportError:
-            print(f"ℹ️  Sobol analysis not available (Ax version may not support it)")
+            print("ℹ️  Sobol analysis not available (Ax version may not support it)")
         except Exception as e:
             print(f"⚠ Sobol analysis failed: {e}")
             # Continue to range-based fallback
@@ -1445,7 +1442,7 @@ class BayesianOptimizer:
 
             except Exception as e:
                 print(f"\n{'='*60}")
-                print(f"❌ BATCH PREDICTION FAILED")
+                print("❌ BATCH PREDICTION FAILED")
                 print(f"{'='*60}")
                 print(f"Error type: {type(e).__name__}")
                 print(f"Error message: {e}")
@@ -1453,7 +1450,7 @@ class BayesianOptimizer:
                 import traceback
                 traceback.print_exc()
                 print(f"{'='*60}")
-                print(f"Falling back to suggestion density heatmap...")
+                print("Falling back to suggestion density heatmap...")
                 print(f"{'='*60}\n")
                 return self._create_suggestion_heatmap(factor_x_original, factor_y_original,
                                                        factor_x_sanitized, factor_y_sanitized,
@@ -1964,7 +1961,6 @@ class BayesianOptimizer:
         try:
             import openpyxl
             import csv as csv_module
-            from openpyxl.styles import Font, Alignment, PatternFill
             
             # Get BO suggestions (already rounded to 0.5 increments)
             suggestions = self.get_next_suggestions(n=n_suggestions)
@@ -2013,7 +2009,7 @@ class BayesianOptimizer:
             next_id = int(last_id) + 1 if last_id else 1
             
             if DEBUG:
-                print(f"\nExcel structure:")
+                print("\nExcel structure:")
                 print(f"  Headers: {headers}")
                 print(f"  Excel max_row: {ws.max_row}")
                 print(f"  Actual last row with data: {last_row_with_data}")
@@ -2046,7 +2042,7 @@ class BayesianOptimizer:
                     display_to_internal[header] = internal_name
 
             if DEBUG:
-                print(f"\n[DEBUG EXPORT] Column mapping:")
+                print("\n[DEBUG EXPORT] Column mapping:")
                 print(f"  Factor columns found in Excel: {factor_col_indices}")
                 print(f"  Response column index: {response_col_idx}")
                 print(f"  Display to internal mapping: {display_to_internal}")
@@ -2107,7 +2103,7 @@ class BayesianOptimizer:
                             reducing_agent_values.add(agent_val_str)
 
             if DEBUG:
-                print(f"Detected categorical values (BO + original data):")
+                print("Detected categorical values (BO + original data):")
                 print(f"  Detergents: {detergent_values}")
                 print(f"  Reducing Agents: {reducing_agent_values}")
             
@@ -2216,7 +2212,7 @@ class BayesianOptimizer:
                     if detergent_type and per_level_det and detergent_type in per_level_det:
                         # Use per-level concentrations (stock and final are predefined)
                         if DEBUG:
-                            print(f"  → Using per-level concentrations")
+                            print("  → Using per-level concentrations")
                         level_data = per_level_det[detergent_type]
                         detergent_stock = level_data['stock']
                         desired_conc = level_data['final']
@@ -2232,12 +2228,12 @@ class BayesianOptimizer:
                                 print(f"  → Calculated volume for '{det_clean}': {volumes[det_clean]} µL")
                         else:
                             if DEBUG:
-                                print(f"  → ERROR: Stock is 0, cannot calculate volume")
+                                print("  → ERROR: Stock is 0, cannot calculate volume")
 
                     elif detergent_type and 'detergent_concentration' in factor_col_indices:
                         # Fall back to normal mode (get concentration from BO suggestion)
                         if DEBUG:
-                            print(f"  → Using normal mode (detergent_concentration from BO)")
+                            print("  → Using normal mode (detergent_concentration from BO)")
                         detergent_conc_col = factor_col_indices['detergent_concentration']
                         detergent_conc_value = excel_row[detergent_conc_col]
                         if DEBUG:
@@ -2256,7 +2252,7 @@ class BayesianOptimizer:
                                     print(f"  → Calculated volume for '{det_clean}': {volumes[det_clean]} µL")
                     else:
                         if DEBUG:
-                            print(f"  → WARNING: No per-level concs and no detergent_concentration column!")
+                            print("  → WARNING: No per-level concs and no detergent_concentration column!")
                             print(f"    Detergent type: '{detergent_type}'")
                             print(f"    per_level_det has this type: {detergent_type in per_level_det if per_level_det else False}")
                 
@@ -2386,9 +2382,9 @@ class BayesianOptimizer:
             
             # Add other simple factors (skip categorical factors and their concentrations)
             if DEBUG:
-                print(f"\n[DEBUG CSV] Building CSV headers for numeric factors:")
+                print("\n[DEBUG CSV] Building CSV headers for numeric factors:")
                 print(f"  factor_col_indices keys: {list(factor_col_indices.keys())}")
-                print(f"  Skipping: buffer pH, buffer_concentration, detergent, detergent_concentration, reducing_agent, reducing_agent_concentration")
+                print("  Skipping: buffer pH, buffer_concentration, detergent, detergent_concentration, reducing_agent, reducing_agent_concentration")
             for internal_name in factor_col_indices.keys():
                 if internal_name not in ['buffer pH', 'buffer_concentration', 'detergent', 'detergent_concentration',
                                         'reducing_agent', 'reducing_agent_concentration']:
@@ -2404,7 +2400,7 @@ class BayesianOptimizer:
             if DEBUG:
                 print(f"\n[DEBUG CSV] Final CSV headers ({len(csv_headers)} total):")
                 print(f"  {csv_headers}")
-                print(f"\n[DEBUG CSV] First volume row:")
+                print("\n[DEBUG CSV] First volume row:")
                 if volume_rows:
                     print(f"  {volume_rows[0]}")
 
@@ -2417,7 +2413,7 @@ class BayesianOptimizer:
                     row = [volumes.get(h, 0) for h in csv_headers]
                     writer.writerow(row)
             
-            print(f"\n✓ Successfully exported:")
+            print("\n✓ Successfully exported:")
             print(f"  Excel: {excel_path}")
             print(f"  CSV: {csv_path}")
             print(f"  Rows added: {len(new_excel_rows)}")

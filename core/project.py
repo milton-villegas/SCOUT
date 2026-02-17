@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
-from utils.constants import AVAILABLE_FACTORS, METADATA_COLUMNS
+from utils.constants import AVAILABLE_FACTORS, METADATA_COLUMNS  # noqa: F401 — AVAILABLE_FACTORS re-exported
 
 
 class DoEProject:

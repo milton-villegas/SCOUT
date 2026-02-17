@@ -1,6 +1,5 @@
 """Analysis routes - upload, configure, run analysis, plots, optimization"""
 
-import json
 import logging
 import os
 import tempfile

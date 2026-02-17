@@ -87,7 +87,7 @@ class ModelPanelMixin:
             messagebox.showwarning("Warning", "Please select at least one response variable.")
             return
 
-        self._debug_log(f"\n[DEBUG ANALYZE] Starting analysis with:")
+        self._debug_log("\n[DEBUG ANALYZE] Starting analysis with:")
         self._debug_log(f"  - Selected responses: {self.selected_responses}")
         self._debug_log(f"  - Response directions: {self.response_directions}")
         self._debug_log(f"  - Response constraints: {self.response_constraints}")
@@ -246,7 +246,7 @@ class ModelPanelMixin:
         except Exception as e:
             import traceback
             print(f"\n{'='*60}")
-            print(f"ANALYSIS ERROR")
+            print("ANALYSIS ERROR")
             print(f"{'='*60}")
             print(f"Error type: {type(e).__name__}")
             print(f"Error message: {str(e)}")

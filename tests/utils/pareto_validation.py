@@ -66,7 +66,7 @@ def verify_pareto_frontier(all_points, pareto_points, directions):
 
     print(f"\nTotal points: {len(all_points)}")
     print(f"Pareto points: {len(pareto_points)}")
-    print(f"\nObjectives and directions:")
+    print("\nObjectives and directions:")
     for obj, direction in directions.items():
         arrow = '↑' if direction == 'maximize' else '↓'
         print(f"  {arrow} {obj}: {direction}")
@@ -127,9 +127,9 @@ def verify_pareto_frontier(all_points, pareto_points, directions):
 
     if non_dominated_count > 0:
         print(f"\n  Found {non_dominated_count} non-Pareto points that are not dominated!")
-        print(f"  This suggests Ax may have missed some Pareto points.")
+        print("  This suggests Ax may have missed some Pareto points.")
     else:
-        print(f"  ✓ All checked non-Pareto points are properly dominated")
+        print("  ✓ All checked non-Pareto points are properly dominated")
 
     # Summary
     print("\n" + "="*70)

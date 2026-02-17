@@ -284,7 +284,7 @@ def run(protocol: protocol_api.ProtocolContext):
     try:
         headers, data_rows = parse_csv_opentrons(buffer_csv, protocol)
     except Exception as e:
-        protocol.comment(f"ERROR: Failed to parse CSV file. Please check its format.")
+        protocol.comment("ERROR: Failed to parse CSV file. Please check its format.")
         protocol.comment(f"  DETAILS: {e}")
         return
 
@@ -309,7 +309,7 @@ def run(protocol: protocol_api.ProtocolContext):
 
     if user_transfer_vol > 112:
         protocol.comment(f"WARNING: Transfer volume ({user_transfer_vol}µL) exceeds 384-well capacity.")
-        protocol.comment(f"  INFO: Capping volume at 112µL.")
+        protocol.comment("  INFO: Capping volume at 112µL.")
         user_transfer_vol = 112
 
     # PROTOCOL SETTINGS
@@ -611,7 +611,7 @@ def run(protocol: protocol_api.ProtocolContext):
 
     protocol.comment("--- PHASE 2: 96-WELL → 384-WELL TRANSFER ---")
     protocol.comment(f"INFO: Transfer volume: {user_transfer_vol} µL")
-    protocol.comment(f"INFO: Starting at 384 column: 1 (auto-fills entire plate)")
+    protocol.comment("INFO: Starting at 384 column: 1 (auto-fills entire plate)")
 
     # Create interleaved well list for 384 plate
 

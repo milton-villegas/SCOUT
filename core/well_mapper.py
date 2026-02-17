@@ -223,7 +223,6 @@ class WellMapper:
             >>> WellMapper.reverse_map_384_to_96(2)  # 384 A3
             (1, 'A5')
         """
-        import math
 
         # Convert index to 384-well position (row-major order: A1, A2, A3...)
         row_384_index = well_384_index // PLATE_384_COLS  # 0-15 for A-P

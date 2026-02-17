@@ -12,7 +12,7 @@ from core.design_factory import DesignFactory
 from core.design_validator import DesignValidator
 from core.volume_calculator import VolumeCalculator
 from core.well_mapper import WellMapper
-from config.design_config import WELLS_PER_PLATE, MAX_TOTAL_WELLS, CATEGORICAL_FACTORS
+from config.design_config import WELLS_PER_PLATE, MAX_TOTAL_WELLS
 
 logger = logging.getLogger(__name__)
 

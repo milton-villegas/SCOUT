@@ -1,12 +1,9 @@
 """Project management routes"""
 
-import io
-import json
 import tempfile
 import os
 
 from fastapi import APIRouter, Depends, Request, Response, UploadFile, File
-from fastapi.responses import StreamingResponse
 
 from backend.sessions import create_session
 from backend.dependencies import get_current_session

@@ -2,7 +2,7 @@
 
 from fastapi import Request, HTTPException
 
-from backend.sessions import get_session, create_session
+from backend.sessions import get_session
 
 
 SESSION_HEADER = "X-Session-ID"

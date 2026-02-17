@@ -4,13 +4,11 @@ Orchestrates experimental design generation for various design types
 """
 
 import itertools
-import math
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Any
 import numpy as np
 
 from config.design_config import (
     CATEGORICAL_FACTORS,
-    DESIGN_TYPES,
     DEFAULT_CENTER_POINTS
 )
 

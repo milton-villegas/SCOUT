@@ -52,7 +52,7 @@ def test_json_save_load():
     # Check file is human-readable
     with open(test_file, 'r') as f:
         content = f.read()
-        print(f"\n✓ File is human-readable (first 500 chars):")
+        print("\n✓ File is human-readable (first 500 chars):")
         print(content[:500] + "...")
 
     # Load from JSON
@@ -77,7 +77,7 @@ def test_json_save_load():
         print(f"  ✅ Factors: {len(loaded_project.get_factors())} factors")
         checks.append(True)
     else:
-        print(f"  ❌ Factors mismatch")
+        print("  ❌ Factors mismatch")
         checks.append(False)
 
     # Check stock concentrations
@@ -85,7 +85,7 @@ def test_json_save_load():
         print(f"  ✅ Stock concs: {loaded_project.get_all_stock_concs()}")
         checks.append(True)
     else:
-        print(f"  ❌ Stock concs mismatch")
+        print("  ❌ Stock concs mismatch")
         checks.append(False)
 
     # Check per-level concentrations
@@ -93,7 +93,7 @@ def test_json_save_load():
         print(f"  ✅ Per-level concs: {list(loaded_project.get_all_per_level_concs().keys())}")
         checks.append(True)
     else:
-        print(f"  ❌ Per-level concs mismatch")
+        print("  ❌ Per-level concs mismatch")
         checks.append(False)
 
     # Check design matrix
@@ -101,12 +101,12 @@ def test_json_save_load():
         print(f"  ✅ Design matrix: {len(loaded_project.design_matrix)} rows")
         checks.append(True)
     else:
-        print(f"  ❌ Design matrix mismatch")
+        print("  ❌ Design matrix mismatch")
         checks.append(False)
 
     # Clean up
     os.remove(test_file)
-    print(f"\n✓ Cleaned up test file")
+    print("\n✓ Cleaned up test file")
 
     # Final result
     print("\n" + "="*70)

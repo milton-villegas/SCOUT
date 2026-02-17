@@ -63,22 +63,22 @@ def test_pareto_frontier_with_id():
 
         # Check required fields
         if 'id' not in point:
-            print(f"  ❌ FAILED: Missing 'id' field")
+            print("  ❌ FAILED: Missing 'id' field")
             all_passed = False
             continue
 
         if 'row_index' not in point:
-            print(f"  ❌ FAILED: Missing 'row_index' field")
+            print("  ❌ FAILED: Missing 'row_index' field")
             all_passed = False
             continue
 
         if 'parameters' not in point:
-            print(f"  ❌ FAILED: Missing 'parameters' field")
+            print("  ❌ FAILED: Missing 'parameters' field")
             all_passed = False
             continue
 
         if 'objectives' not in point:
-            print(f"  ❌ FAILED: Missing 'objectives' field")
+            print("  ❌ FAILED: Missing 'objectives' field")
             all_passed = False
             continue
 
@@ -97,9 +97,9 @@ def test_pareto_frontier_with_id():
                 print(f"  ❌ FAILED: ID {point['id']} is out of range [1, {n}]")
                 all_passed = False
             else:
-                print(f"  ✓ ID is valid")
+                print("  ✓ ID is valid")
         else:
-            print(f"  ⚠️  WARNING: ID is None")
+            print("  ⚠️  WARNING: ID is None")
 
         # Validate row_index
         if point['row_index'] is not None:
@@ -107,9 +107,9 @@ def test_pareto_frontier_with_id():
                 print(f"  ❌ FAILED: row_index {point['row_index']} not in data")
                 all_passed = False
             else:
-                print(f"  ✓ Row index is valid")
+                print("  ✓ Row index is valid")
         else:
-            print(f"  ⚠️  WARNING: row_index is None")
+            print("  ⚠️  WARNING: row_index is None")
 
     if all_passed:
         print("\n✅ ALL TESTS PASSED!")

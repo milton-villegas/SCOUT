@@ -28,7 +28,6 @@ from tkinter import ttk, filedialog, messagebox
 import itertools
 import csv
 import os
-import re
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 import numpy as np
@@ -2087,7 +2086,7 @@ class DesignerTab(ttk.Frame):
         if negative_water_wells:
             # Build error message for impossible designs
             error_msg = "⚠️ IMPOSSIBLE DESIGN DETECTED ⚠️\n\n"
-            error_msg += f"The following wells require NEGATIVE water volumes:\n\n"
+            error_msg += "The following wells require NEGATIVE water volumes:\n\n"
             
             # Show problematic wells
             for well_id, well_pos, water_vol in negative_water_wells[:5]:
@@ -2132,7 +2131,7 @@ class DesignerTab(ttk.Frame):
             
             if missing_stocks:
                 messagebox.showerror("Missing Stock Concentrations",
-                    f"The following factors need stock concentrations:\n\n" +
+                    "The following factors need stock concentrations:\n\n" +
                     "\n".join(f"• {f}" for f in missing_stocks) +
                     "\n\nEdit each factor to add stock concentrations.")
                 return

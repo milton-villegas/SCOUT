@@ -1,8 +1,6 @@
 """Export service - generates Excel and CSV files in memory matching original SCOUT format"""
 
-import csv
 import io
-from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd

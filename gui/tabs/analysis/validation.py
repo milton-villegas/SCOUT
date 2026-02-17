@@ -92,7 +92,7 @@ def _validate_min_constraint(response_name, direction, min_val, data_min, data_m
                 'severity': 'warning',
                 'category': 'no_data_min',
                 'message': f"{response_name} Min={min_val:.2f} is above all data ({data_max:.2f}) - will be ignored",
-                'detail': f"No experiments meet this constraint. Analysis will proceed without it.",
+                'detail': "No experiments meet this constraint. Analysis will proceed without it.",
                 'should_stop': False,
                 'experiments_meeting': 0
             }
@@ -116,7 +116,7 @@ def _validate_max_constraint(response_name, direction, max_val, data_min, data_m
                 'severity': 'warning',
                 'category': 'no_data_max',
                 'message': f"{response_name} Max={max_val:.2f} is below all data ({data_min:.2f}) - will be ignored",
-                'detail': f"No experiments meet this constraint. Analysis will proceed without it.",
+                'detail': "No experiments meet this constraint. Analysis will proceed without it.",
                 'should_stop': False,
                 'experiments_meeting': 0
             }

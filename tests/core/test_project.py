@@ -1,8 +1,6 @@
 """Tests for DoEProject class"""
 import pytest
 import pandas as pd
-import pickle
-from pathlib import Path
 from core.project import DoEProject
 
 
