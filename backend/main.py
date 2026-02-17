@@ -63,6 +63,9 @@ async def auto_session_middleware(request: Request, call_next):
     if not has_valid_session and request.url.path.startswith("/api/"):
         session_id = create_session("SCOUT Project")
         request.state.new_session_id = session_id
+        logging.getLogger("backend.session").info(
+            f"[SESSION] New session {session_id[:8]} for {request.url.path}"
+        )
 
     response: Response = await call_next(request)
 
@@ -72,9 +75,10 @@ async def auto_session_middleware(request: Request, call_next):
             key=SESSION_COOKIE_NAME,
             value=request.state.new_session_id,
             httponly=True,
-            samesite="none",
-            secure=True,
+            samesite="lax",
+            secure=False,
             max_age=3600,
+            path="/",
         )
 
     return response
