@@ -183,6 +183,14 @@
 		exporting = false;
 	}
 
+	let tabsEl: HTMLElement;
+
+	function switchTab(tab: string) {
+		activeTab = tab;
+		// Keep the tabs in view after content swap
+		requestAnimationFrame(() => tabsEl?.scrollIntoView({ behavior: 'instant', block: 'nearest' }));
+	}
+
 	let resultEntries = $derived(
 		$analysisResults ? Object.entries($analysisResults) : []
 	);
@@ -241,20 +249,20 @@
 
 {#if $analysisResults}
 	<div class="mt-4">
-		<div role="tablist" class="tabs tabs-bordered">
-			<button role="tab" class="tab" class:tab-active={activeTab === 'results'} onclick={() => activeTab = 'results'}>Results</button>
-			<button role="tab" class="tab" class:tab-active={activeTab === 'main-effects'} onclick={() => activeTab = 'main-effects'}>Main Effects</button>
-			<button role="tab" class="tab" class:tab-active={activeTab === 'interactions'} onclick={() => activeTab = 'interactions'}>Interactions</button>
-			<button role="tab" class="tab" class:tab-active={activeTab === 'residuals'} onclick={() => activeTab = 'residuals'}>Residuals</button>
-			<button role="tab" class="tab" class:tab-active={activeTab === 'predictions'} onclick={() => activeTab = 'predictions'}>Predictions</button>
+		<div role="tablist" class="tabs tabs-bordered" bind:this={tabsEl}>
+			<button role="tab" class="tab" class:tab-active={activeTab === 'results'} onclick={() => switchTab('results')}>Results</button>
+			<button role="tab" class="tab" class:tab-active={activeTab === 'main-effects'} onclick={() => switchTab('main-effects')}>Main Effects</button>
+			<button role="tab" class="tab" class:tab-active={activeTab === 'interactions'} onclick={() => switchTab('interactions')}>Interactions</button>
+			<button role="tab" class="tab" class:tab-active={activeTab === 'residuals'} onclick={() => switchTab('residuals')}>Residuals</button>
+			<button role="tab" class="tab" class:tab-active={activeTab === 'predictions'} onclick={() => switchTab('predictions')}>Predictions</button>
 			{#if $modelComparison}
-				<button role="tab" class="tab" class:tab-active={activeTab === 'comparison'} onclick={() => activeTab = 'comparison'}>Models</button>
+				<button role="tab" class="tab" class:tab-active={activeTab === 'comparison'} onclick={() => switchTab('comparison')}>Models</button>
 			{/if}
 			{#if $suggestions}
-				<button role="tab" class="tab" class:tab-active={activeTab === 'suggestions'} onclick={() => activeTab = 'suggestions'}>Suggestions</button>
+				<button role="tab" class="tab" class:tab-active={activeTab === 'suggestions'} onclick={() => switchTab('suggestions')}>Suggestions</button>
 			{/if}
 			{#if $suggestions && Object.keys(boPlots).length > 0}
-				<button role="tab" class="tab" class:tab-active={activeTab === 'bo-plots'} onclick={() => activeTab = 'bo-plots'}>BO Plots</button>
+				<button role="tab" class="tab" class:tab-active={activeTab === 'bo-plots'} onclick={() => switchTab('bo-plots')}>BO Plots</button>
 			{/if}
 		</div>
 
