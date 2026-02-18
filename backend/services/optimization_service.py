@@ -5,7 +5,7 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 from backend.services.analysis_service import _make_serializable
-from gui.tabs.analysis.validation import validate_constraint
+from core.constraint_validation import validate_constraint
 
 logger = logging.getLogger(__name__)
 

@@ -16,8 +16,8 @@ from tkinter import ttk, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# Import validation function from sibling module
-from .validation import validate_constraint
+# Import validation function from core module
+from core.constraint_validation import validate_constraint
 
 # Bayesian Optimization availability check
 try:
